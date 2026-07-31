@@ -8,6 +8,7 @@ import { loadImageFile, windowedCrop } from './image/load';
 import { Controls } from './ui/Controls';
 import { DropZone } from './ui/DropZone';
 import { GuideView } from './ui/GuideView';
+import { Welcome } from './ui/Welcome';
 import { PaletteEditor } from './ui/PaletteEditor';
 import { PartsView } from './ui/PartsView';
 import { Preview } from './ui/Preview';
@@ -53,6 +54,19 @@ function App() {
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'failed to load image');
     }
+  }, []);
+
+  // Logo click = back to the drop screen. Palette and option settings are
+  // kept; only the image and crop offsets reset.
+  const handleHome = useCallback(() => {
+    setImage((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+    setOffsetX(0);
+    setOffsetY(0);
+    setLoadError(null);
+    setTab('preview');
   }, []);
 
   // The encoder derives the row count from the cropped image's aspect
@@ -105,9 +119,14 @@ function App() {
       {/* App shell — hidden when printing (only the guide prints). */}
       <div className="flex h-full flex-col print:hidden">
         <header className="flex items-baseline gap-3 border-b border-neutral-800 px-4 py-2">
-          <h1 className="text-sm font-semibold tracking-wide text-amber-500">
+          <button
+            type="button"
+            onClick={handleHome}
+            title="Back to start"
+            className="text-sm font-semibold tracking-wide text-amber-500 hover:text-amber-400"
+          >
             LEGO DESIGNER
-          </h1>
+          </button>
           <span className="text-xs text-neutral-500">
             photo → 1×1 plate-edge mosaic
           </span>
@@ -192,8 +211,8 @@ function App() {
               </main>
             </>
           ) : (
-            <main className="flex min-w-0 flex-1 flex-col">
-              <DropZone url={null} onFile={handleFile} />
+            <main className="min-w-0 flex-1 overflow-auto">
+              <Welcome onFile={handleFile} />
               {loadError && (
                 <p className="px-8 pb-4 text-xs text-red-400">{loadError}</p>
               )}
