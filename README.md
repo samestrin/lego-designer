@@ -52,9 +52,13 @@ bricks are 3 courses (9.6mm). The piece catalog:
 3. **Tip** the finished wall 90° **clockwise** (onto its right side): the
    bottom course becomes the LEFT edge of the display, the left stud-column
    the TOP row. The plate/brick edges now face the viewer.
-4. **Frame** it: a staggered border of 1×8/1×10 plates in 3 offset layers
-   along the top and bottom edges, with SNOT-brick side columns capturing
-   the bar ends.
+4. **Frame** it (suggested construction — adjust to your bins): 3 layers of
+   long thin plates (1×8/1×10) along the top and bottom edges, each layer
+   offset about half a plate length so seams never line up (running bond —
+   that's where the strength comes from); corner brackets (e.g. 2357 or
+   1×2-1×2) tying the borders into one rigid ring; and a SNOT-brick column
+   (36841 1×1-1×1, studs facing the display) down each side to capture the
+   bar ends. Frame pieces are not counted in the parts list.
 
 Grab the exact piece counts per color from the **Parts** tab (CSV export
 included).

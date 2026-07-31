@@ -29,7 +29,11 @@ export function PrintGuide({ data }: { data: GuideData }) {
           </li>
         ))}
       </ol>
-      <p className="frame">{data.frameLine}</p>
+      <div className="frame-block">
+        {data.frameLines.map((line, i) => (
+          <p key={i}>{line}</p>
+        ))}
+      </div>
     </div>
   );
 }

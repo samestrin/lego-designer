@@ -24,7 +24,7 @@ export interface GuideData {
   partsLine: string;
   buildLines: string[];
   courses: { course: number; pieces: { text: string; hex: string }[] }[];
-  frameLine: string;
+  frameLines: string[];
 }
 
 export function buildGuideData(
@@ -94,8 +94,15 @@ export function buildGuideData(
       'bottom course becomes the LEFT edge of the display, the left column the TOP row.',
     ],
     courses,
-    frameLine:
-      'FRAME: build a staggered border of 1×8/1×10 plates in 3 offset layers along the top and bottom edges, with SNOT-brick side columns to capture the bar ends. Adjust plate lengths and layer count to your bins.',
+    frameLines: [
+      'FRAME: a suggested construction — adjust to your bins; nothing here is counted in the parts list.',
+      '1. Top and bottom edges: 3 layers of long thin plates (1×8/1×10), each layer offset about half a',
+      '   plate length so the seams never line up (running bond) — that is what gives the border its strength.',
+      '2. Corners: tie the top/bottom borders to the side columns with corner brackets (e.g. 2357 or a',
+      '   1×2-1×2 bracket) so the frame acts as one rigid ring.',
+      '3. Sides: a column of SNOT bricks (36841 1×1-1×1, studs facing the display) captures the outermost',
+      '   bar ends and gives the corner brackets something to bite into.',
+    ],
   };
 }
 
@@ -117,6 +124,6 @@ export function generateGuide(
     const runs = pieces.map((p) => p.text);
     lines.push(`Course ${String(course).padStart(3, '0')}: ${runs.join(', ')}`);
   }
-  lines.push('', data.frameLine);
+  lines.push('', ...data.frameLines);
   return lines.join('\n');
 }
