@@ -1,5 +1,7 @@
 # lego-designer
 
+<img src="public/favicon.svg" alt="lego-designer logo" width="72" />
+
 [![CI](https://github.com/samestrin/lego-designer/actions/workflows/ci.yml/badge.svg)](https://github.com/samestrin/lego-designer/actions/workflows/ci.yml)
 
 Turn a photo into a build plan for a LEGO mosaic viewed **plate-edge-on**.
@@ -23,8 +25,8 @@ npm run test   # core engine + crop unit tests
 ## The physical model
 
 The whole mosaic is **one ordinary standing LEGO wall** — studs up, stacked
-courses — and its face IS the display. No tipping, ever: what you see while
-building is what you get. The mapping:
+courses — and its face IS the display: what you see while building is what
+you get. The mapping:
 
 - A wall **stud** (8mm, horizontal) = one sub-pixel column; studs run along
   a display row.
@@ -95,6 +97,9 @@ palette.
 
 ## Image and style controls
 
+- **Adjust crop…** — drag a frame over the source photo to choose what
+  part gets built. Free aspect: the display's height follows the crop's
+  shape, and the grid readout updates live.
 - **Contrast / saturation** — pre-encode adjustments (−100…+100) applied
   to the resampled grid. Boosting both usually helps: the LEGO palette has
   far less dynamic range than a photo.
