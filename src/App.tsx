@@ -123,8 +123,9 @@ function App() {
             type="button"
             onClick={handleHome}
             title="Back to start"
-            className="text-sm font-semibold tracking-wide text-amber-500 hover:text-amber-400"
+            className="flex items-center gap-2 text-sm font-semibold tracking-wide text-amber-500 hover:text-amber-400"
           >
+            <img src="/favicon.svg" alt="" className="h-5 w-5 rounded" />
             LEGO DESIGNER
           </button>
           <span className="text-xs text-neutral-500">
