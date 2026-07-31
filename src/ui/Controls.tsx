@@ -19,9 +19,8 @@ interface ControlsProps {
   onSetId: (s: PieceSetId) => void;
   mode: TilingMode;
   onMode: (m: TilingMode) => void;
-  offsetX: number;
-  offsetY: number;
-  onOffsets: (x: number, y: number) => void;
+  onOpenCrop: () => void;
+  onResetCrop: () => void;
   showMismatches: boolean;
   onShowMismatches: (b: boolean) => void;
   mismatchCount: number;
@@ -51,9 +50,8 @@ export function Controls(props: ControlsProps) {
     onSetId,
     mode,
     onMode,
-    offsetX,
-    offsetY,
-    onOffsets,
+    onOpenCrop,
+    onResetCrop,
     showMismatches,
     onShowMismatches,
     mismatchCount,
@@ -153,7 +151,7 @@ export function Controls(props: ControlsProps) {
             }}
             className="rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-400 hover:border-amber-500 hover:text-amber-400"
           >
-            reset
+            Reset
           </button>
         </div>
         <label htmlFor="contrast" className="mb-0.5 block text-xs text-neutral-500">
@@ -212,41 +210,26 @@ export function Controls(props: ControlsProps) {
 
       <section>
         <div className="mb-1 flex items-center justify-between">
-          <span className="text-neutral-300">Crop offset</span>
+          <span className="text-neutral-300">Crop</span>
           <button
             type="button"
-            onClick={() => onOffsets(0, 0)}
+            onClick={onResetCrop}
             className="rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-400 hover:border-amber-500 hover:text-amber-400"
           >
-            center
+            Reset
           </button>
         </div>
-        <label htmlFor="offset-x" className="mb-0.5 block text-xs text-neutral-500">
-          shift horizontal ({offsetX.toFixed(2)})
-        </label>
-        <input
-          id="offset-x"
-          type="range"
-          min={-1}
-          max={1}
-          step={0.05}
-          value={offsetX}
-          onChange={(e) => onOffsets(Number(e.target.value), offsetY)}
-          className="w-full accent-amber-500"
-        />
-        <label htmlFor="offset-y" className="mt-2 mb-0.5 block text-xs text-neutral-500">
-          shift vertical ({offsetY.toFixed(2)})
-        </label>
-        <input
-          id="offset-y"
-          type="range"
-          min={-1}
-          max={1}
-          step={0.05}
-          value={offsetY}
-          onChange={(e) => onOffsets(offsetX, Number(e.target.value))}
-          className="w-full accent-amber-500"
-        />
+        <button
+          type="button"
+          onClick={onOpenCrop}
+          className="w-full rounded border border-neutral-700 px-2 py-1.5 text-neutral-300 hover:border-amber-500 hover:text-amber-400"
+        >
+          Adjust crop…
+        </button>
+        <p className="mt-1 text-xs text-neutral-500">
+          frame the part of the photo to build; the display height follows the
+          crop's shape
+        </p>
       </section>
 
       <section className="flex items-center gap-2">

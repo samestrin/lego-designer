@@ -4,8 +4,10 @@ import { encodeMosaic } from './core/encoder';
 import { buildGuideData, generateGuide } from './core/guide';
 import { enabledColors } from './core/palette';
 import { tileMosaic } from './core/tiling';
-import { loadImageFile, windowedCrop } from './image/load';
+import { loadImageFile, cropRect, DEFAULT_CROP } from './image/load';
+import type { CropRect } from './image/load';
 import { Controls } from './ui/Controls';
+import { CropDialog } from './ui/CropDialog';
 import { DropZone } from './ui/DropZone';
 import { GuideView } from './ui/GuideView';
 import { Welcome } from './ui/Welcome';
@@ -32,12 +34,12 @@ function App() {
   const [image, setImage] = useState<{ pixels: PixelData; url: string } | null>(null);
   const [cellWidth, setCellWidth] = useState(16);
   const [options, setOptions] = useState(loadStoredOptions);
-  const [offsetX, setOffsetX] = useState(0);
-  const [offsetY, setOffsetY] = useState(0);
+  const [crop, setCrop] = useState<CropRect>(DEFAULT_CROP);
   const [palette, setPalette] = useState<PaletteColor[]>(loadStoredPalette);
   const [showMismatches, setShowMismatches] = useState(false);
   const [tab, setTab] = useState<Tab>('preview');
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => saveStoredPalette(palette), [palette]);
@@ -57,26 +59,22 @@ function App() {
   }, []);
 
   // Logo click = back to the drop screen. Palette and option settings are
-  // kept; only the image and crop offsets reset.
+  // kept; only the image and crop reset.
   const handleHome = useCallback(() => {
     setImage((prev) => {
       if (prev) URL.revokeObjectURL(prev.url);
       return null;
     });
-    setOffsetX(0);
-    setOffsetY(0);
+    setCrop(DEFAULT_CROP);
     setLoadError(null);
     setTab('preview');
   }, []);
 
-  // The encoder derives the row count from the cropped image's aspect
-  // (rows = round(h * cellWidth * (8/9.6) / w)), and we always want the
-  // source's native aspect, so the crop is a fixed 90% window of the
-  // source — same aspect, so the aspect never changes — whose position
-  // the offset sliders move within the remaining 10% slack.
+  // The crop is free-aspect: the encoder derives the row count from the
+  // cropped image's aspect, so reframing also reshapes the display.
   const cropped = useMemo(
-    () => (image ? windowedCrop(image.pixels, offsetX, offsetY) : null),
-    [image, offsetX, offsetY],
+    () => (image ? cropRect(image.pixels, crop) : null),
+    [image, crop],
   );
 
   const mosaic = useMemo(() => {
@@ -129,7 +127,7 @@ function App() {
             LEGO DESIGNER
           </button>
           <span className="text-xs text-neutral-500">
-            photo → 1×1 plate-edge mosaic
+            photo → LEGO plate-edge mosaic
           </span>
         </header>
 
@@ -156,12 +154,8 @@ function App() {
                   onSetId={(setId) => setOptions((o) => ({ ...o, setId }))}
                   mode={options.mode}
                   onMode={(mode) => setOptions((o) => ({ ...o, mode }))}
-                  offsetX={offsetX}
-                  offsetY={offsetY}
-                  onOffsets={(x, y) => {
-                    setOffsetX(x);
-                    setOffsetY(y);
-                  }}
+                  onOpenCrop={() => setCropOpen(true)}
+                  onResetCrop={() => setCrop(DEFAULT_CROP)}
                   showMismatches={showMismatches}
                   onShowMismatches={setShowMismatches}
                   mismatchCount={mismatchCount}
@@ -223,6 +217,18 @@ function App() {
             palette={palette}
             onChange={setPalette}
             onClose={() => setPaletteOpen(false)}
+          />
+        )}
+
+        {cropOpen && image && (
+          <CropDialog
+            url={image.url}
+            imgWidth={image.pixels.width}
+            imgHeight={image.pixels.height}
+            cellWidth={cellWidth}
+            crop={crop}
+            onChange={setCrop}
+            onClose={() => setCropOpen(false)}
           />
         )}
       </div>

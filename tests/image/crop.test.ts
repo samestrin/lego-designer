@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cropPixelData, windowedCrop } from '../../src/image/load';
+import { cropPixelData, cropRect, DEFAULT_CROP } from '../../src/image/load';
 import type { PixelData } from '../../src/core/types';
 
 /** Pixel buffer where each pixel encodes its own coordinates (r = x, g = y). */
@@ -58,16 +58,32 @@ describe('cropPixelData', () => {
   });
 });
 
-describe('windowedCrop', () => {
-  it('takes a centered 90% window by default', () => {
-    const crop = windowedCrop(coordPixels(100, 50), 0, 0);
-    expect(crop.width).toBe(90);
-    expect(crop.height).toBe(45);
-    expect(sourceCoord(crop, 0, 0)).toEqual([5, 3]); // round(0.5*10), round(0.5*5)
+describe('cropRect', () => {
+  it('extracts an arbitrary fractional region', () => {
+    const crop = cropRect(coordPixels(100, 50), { x: 0.1, y: 0.2, w: 0.5, h: 0.4 });
+    expect(crop.width).toBe(50);
+    expect(crop.height).toBe(20);
+    expect(sourceCoord(crop, 0, 0)).toEqual([10, 10]);
+    expect(sourceCoord(crop, 49, 19)).toEqual([59, 29]);
   });
 
-  it('moves within the slack at offset +1', () => {
-    const crop = windowedCrop(coordPixels(100, 50), 1, 1);
-    expect(sourceCoord(crop, 0, 0)).toEqual([10, 5]);
+  it('takes a centered 90% region as DEFAULT_CROP', () => {
+    const crop = cropRect(coordPixels(100, 50), DEFAULT_CROP);
+    expect(crop.width).toBe(90);
+    expect(crop.height).toBe(45);
+    expect(sourceCoord(crop, 0, 0)).toEqual([5, 3]); // round(.05*100), round(.05*50)
+  });
+
+  it('clamps to the source bounds', () => {
+    const crop = cropRect(coordPixels(100, 50), { x: 0.9, y: -0.5, w: 0.5, h: 2 });
+    expect(crop.width).toBe(10);
+    expect(crop.height).toBe(50);
+    expect(sourceCoord(crop, 0, 0)).toEqual([90, 0]);
+  });
+
+  it('never returns smaller than 1×1', () => {
+    const crop = cropRect(coordPixels(10, 10), { x: 0.5, y: 0.5, w: 0, h: 0 });
+    expect(crop.width).toBe(1);
+    expect(crop.height).toBe(1);
   });
 });

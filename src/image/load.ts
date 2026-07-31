@@ -1,8 +1,8 @@
 /**
  * Image loading and cropping for the browser UI.
  *
- * `loadImageFile` bridges File → PixelData via canvas; `cropPixelData` and
- * `windowedCrop` are pure array math so they stay unit-testable in node.
+ * `loadImageFile` bridges File → PixelData via canvas; the crop functions
+ * are pure array math so they stay unit-testable in node.
  */
 
 import type { PixelData } from '../core/types';
@@ -90,16 +90,29 @@ export function cropPixelData(
 }
 
 /**
- * A fixed window of `windowFrac` of each dimension (same aspect as the
- * source), positioned by the offsets within the remaining slack.
+ * A crop rectangle in source fractions (0..1 each). This is the app's
+ * user-facing crop: `cropRect` extracts it, the encoder adapts the row
+ * count to whatever aspect it has.
  */
-export function windowedCrop(
-  pixels: PixelData,
-  offsetXFrac: number,
-  offsetYFrac: number,
-  windowFrac = 0.9,
-): PixelData {
-  const cw = Math.max(1, Math.round(pixels.width * windowFrac));
-  const ch = Math.max(1, Math.round(pixels.height * windowFrac));
-  return cropTo(pixels, cw, ch, offsetXFrac, offsetYFrac);
+export interface CropRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export const DEFAULT_CROP: CropRect = { x: 0.05, y: 0.05, w: 0.9, h: 0.9 };
+
+/** Extract `rect` (fractions) from `pixels`; clamped, min 1×1. */
+export function cropRect(pixels: PixelData, rect: CropRect): PixelData {
+  const x0 = Math.max(0, Math.min(pixels.width - 1, Math.round(rect.x * pixels.width)));
+  const y0 = Math.max(0, Math.min(pixels.height - 1, Math.round(rect.y * pixels.height)));
+  const cw = Math.max(1, Math.min(pixels.width - x0, Math.round(rect.w * pixels.width)));
+  const ch = Math.max(1, Math.min(pixels.height - y0, Math.round(rect.h * pixels.height)));
+  const data = new Uint8ClampedArray(cw * ch * 4);
+  for (let y = 0; y < ch; y++) {
+    const srcStart = ((y0 + y) * pixels.width + x0) * 4;
+    data.set(pixels.data.subarray(srcStart, srcStart + cw * 4), y * cw * 4);
+  }
+  return { width: cw, height: ch, data };
 }
