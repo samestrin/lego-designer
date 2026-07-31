@@ -99,4 +99,59 @@ describe('encodeMosaic', () => {
     expect(mosaic.rows).toBe(1);
     expect(mosaic.cells).toHaveLength(5);
   });
+
+  it('ditherStrength scales the diffused error (0 = off, still deterministic)', () => {
+    const pixels = makePixels(48, 8, (x) => {
+      const v = Math.round((x * 255) / 47);
+      return [v, v, v];
+    });
+    const palette = defaultPalette();
+    const off = encodeMosaic(pixels, 8, palette, { dither: true, ditherStrength: 0 });
+    const half = encodeMosaic(pixels, 8, palette, { dither: true, ditherStrength: 0.5 });
+    const full = encodeMosaic(pixels, 8, palette, { dither: true, ditherStrength: 1 });
+    const noDither = encodeMosaic(pixels, 8, palette, { dither: false });
+
+    const key = (m: typeof off) => JSON.stringify(m.cells);
+    expect(key(off)).toBe(key(noDither)); // strength 0 ≡ dither off
+    expect(key(half)).not.toBe(key(full)); // strength actually changes output
+    expect(key(full)).toBe(key(encodeMosaic(pixels, 8, palette, { dither: true })));
+  });
+
+  it('contrast pushes a mid-gray image away from gray matches', () => {
+    const pixels = makePixels(24, 12, solid(0x80, 0x80, 0x80));
+    const palette = defaultPalette();
+    const flat = encodeMosaic(pixels, 4, palette, { dither: false });
+    const darkened = encodeMosaic(pixels, 4, palette, {
+      dither: false,
+      contrast: -100,
+    });
+    // Contrast -100 flattens everything to 128 gray; both must stay valid,
+    // and negative contrast must not lighten the result.
+    const lum = (m: typeof flat) =>
+      m.cells.reduce((s, c) => s + (c.fg.id === 'black' ? 1 : 0), 0);
+    expect(lum(darkened)).toBeGreaterThanOrEqual(lum(flat));
+  });
+
+  it('leading darkens strong-edge cells, leaving flat regions alone', () => {
+    // Two non-dark halves with a strong boundary: light gray vs white.
+    const pixels = makePixels(48, 12, (x) =>
+      x < 24 ? [0xa3, 0xa2, 0xa4] : [0xff, 0xff, 0xff],
+    );
+    const palette = defaultPalette();
+    const DARK = new Set(['black', 'dark-bluish-gray', 'trans-black']);
+    const darkCount = (m: ReturnType<typeof encodeMosaic>) =>
+      m.cells.filter((c) => DARK.has(c.fg.id) || DARK.has(c.bg.id)).length;
+
+    const plain = encodeMosaic(pixels, 8, palette, { dither: false });
+    const leaded = encodeMosaic(pixels, 8, palette, { dither: false, leading: true });
+    expect(darkCount(leaded)).toBeGreaterThan(darkCount(plain));
+
+    // Flat regions untouched: a solid light-gray image stays non-dark.
+    const solidGray = makePixels(24, 12, solid(0xa3, 0xa2, 0xa4));
+    const leadedSolid = encodeMosaic(solidGray, 4, palette, {
+      dither: false,
+      leading: true,
+    });
+    expect(darkCount(leadedSolid)).toBe(0);
+  });
 });

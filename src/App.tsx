@@ -30,7 +30,6 @@ const TABS: { id: Tab; label: string }[] = [
 function App() {
   const [image, setImage] = useState<{ pixels: PixelData; url: string } | null>(null);
   const [cellWidth, setCellWidth] = useState(16);
-  const [dither, setDither] = useState(true);
   const [options, setOptions] = useState(loadStoredOptions);
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
@@ -68,8 +67,14 @@ function App() {
 
   const mosaic = useMemo(() => {
     if (!cropped || enabledColors(palette).length === 0) return null;
-    return encodeMosaic(cropped, cellWidth, palette, { dither });
-  }, [cropped, cellWidth, palette, dither]);
+    return encodeMosaic(cropped, cellWidth, palette, {
+      dither: options.ditherStrength > 0,
+      ditherStrength: options.ditherStrength / 100,
+      contrast: options.contrast,
+      saturation: options.saturation,
+      leading: options.leading,
+    });
+  }, [cropped, cellWidth, palette, options.ditherStrength, options.contrast, options.saturation, options.leading]);
 
   const tiling = useMemo(
     () => (mosaic ? tileMosaic(mosaic, options.setId, options.mode) : null),
@@ -119,8 +124,14 @@ function App() {
                 <Controls
                   cellWidth={cellWidth}
                   onCellWidth={setCellWidth}
-                  dither={dither}
-                  onDither={setDither}
+                  ditherStrength={options.ditherStrength}
+                  onDitherStrength={(ditherStrength) => setOptions((o) => ({ ...o, ditherStrength }))}
+                  contrast={options.contrast}
+                  onContrast={(contrast) => setOptions((o) => ({ ...o, contrast }))}
+                  saturation={options.saturation}
+                  onSaturation={(saturation) => setOptions((o) => ({ ...o, saturation }))}
+                  leading={options.leading}
+                  onLeading={(leading) => setOptions((o) => ({ ...o, leading }))}
                   setId={options.setId}
                   onSetId={(setId) => setOptions((o) => ({ ...o, setId }))}
                   mode={options.mode}

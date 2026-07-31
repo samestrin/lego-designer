@@ -11,11 +11,19 @@
 import type { Cell, Lab, Mosaic, PaletteColor, PixelData } from './types';
 import { hexToRgb, labDistanceSq, rgbToLab } from './color';
 import { enabledColors } from './palette';
+import { adjustPixelData } from './adjust';
 
 const TOP_K = 4;
 
 // Physical sub-pixel (plate edge) aspect: 3.2mm wide / 8mm tall.
 const SUBPIXEL_ASPECT = 3.2 / 8;
+
+// Leading (stained-glass "lead came"): strong edges are darkened in the
+// resampled grid before matching, so edge cells naturally snap to black /
+// dark gray while flat regions are untouched.
+const LEADING_DARKEN = 0.6;
+// ΔE between neighboring cell means that counts as a full-strength edge.
+const EDGE_FULL_DE = 30;
 
 // Floyd–Steinberg weights applied at sub-pixel resolution.
 const FS_RIGHT = 7 / 16;
@@ -145,6 +153,17 @@ function geometryCell(g: Geometry, error: number): Cell {
   };
 }
 
+export interface EncodeOptions {
+  dither: boolean;
+  /** Scales the diffused Floyd–Steinberg error, 0..1 (default 1). */
+  ditherStrength?: number;
+  /** Pre-encode adjustments, -100..100 each, applied to the resampled grid. */
+  contrast?: number;
+  saturation?: number;
+  /** Bias cells on strong edges toward dark colors (stained-glass look). */
+  leading?: boolean;
+}
+
 /**
  * Encode an image into a plate mosaic of `cellWidth` cells per row.
  * Rows are derived from the image aspect ratio: each row is one 8mm-tall
@@ -154,7 +173,7 @@ export function encodeMosaic(
   pixels: PixelData,
   cellWidth: number,
   palette: PaletteColor[],
-  opts: { dither: boolean },
+  opts: EncodeOptions,
 ): Mosaic {
   const enabled = enabledColors(palette);
   if (enabled.length === 0) {
@@ -168,7 +187,8 @@ export function encodeMosaic(
     1,
     Math.round((pixels.height * subWidth * SUBPIXEL_ASPECT) / pixels.width),
   );
-  const resampled = resampleBoxAverage(pixels, subWidth, rows);
+  const resampled = adjustPixelData(resampleBoxAverage(pixels, subWidth, rows), opts);
+  const ditherStrength = opts.ditherStrength ?? 1;
 
   // Precompute Lab for each enabled palette color once.
   const entries: PaletteEntry[] = enabled.map((color) => {
@@ -179,6 +199,39 @@ export function encodeMosaic(
   // Working Lab grid; dithering mutates this in place.
   const grid = toLabGrid(resampled);
   const cells: Cell[] = [];
+
+  // Leading: per-cell edge strength (0..1) from the pristine grid, as the
+  // mean ΔE to 4-neighbor cell means, normalized at EDGE_FULL_DE; then
+  // darken edge cells' luminance so the matcher snaps them to dark colors.
+  if (opts.leading) {
+    const mean = (cx: number, cy: number): Lab => {
+      const i0 = cy * subWidth + cx * 3;
+      return {
+        l: (grid.l[i0] + grid.l[i0 + 1] + grid.l[i0 + 2]) / 3,
+        a: (grid.a[i0] + grid.a[i0 + 1] + grid.a[i0 + 2]) / 3,
+        b: (grid.b[i0] + grid.b[i0 + 1] + grid.b[i0 + 2]) / 3,
+      };
+    };
+    for (let cy = 0; cy < rows; cy++) {
+      for (let cx = 0; cx < cellWidth; cx++) {
+        const m = mean(cx, cy);
+        let sum = 0;
+        let n = 0;
+        for (const [nx, ny] of [[cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]]) {
+          if (nx < 0 || ny < 0 || nx >= cellWidth || ny >= rows) continue;
+          sum += Math.sqrt(labDistanceSq(m, mean(nx, ny)));
+          n++;
+        }
+        const edge = n ? Math.min(1, sum / n / EDGE_FULL_DE) : 0;
+        if (edge > 0) {
+          const scale = 1 - LEADING_DARKEN * edge;
+          for (let o = 0; o < 3; o++) {
+            grid.l[cy * subWidth + cx * 3 + o] *= scale;
+          }
+        }
+      }
+    }
+  }
 
   const clamp = (v: number, lo: number, hi: number) =>
     v < lo ? lo : v > hi ? hi : v;
@@ -244,17 +297,17 @@ export function encodeMosaic(
       const chosen = best!;
       cells.push(geometryCell(chosen, bestError));
 
-      if (opts.dither) {
+      if (opts.dither && ditherStrength > 0) {
         const assigned = geometryAssignments(chosen);
         for (let i = 0; i < 3; i++) {
           const el = samples[i].l - assigned[i].lab.l;
           const ea = samples[i].a - assigned[i].lab.a;
           const eb = samples[i].b - assigned[i].lab.b;
           const px = sx + i;
-          diffuse(px + 1, cy, el, ea, eb, FS_RIGHT);
-          diffuse(px - 1, cy + 1, el, ea, eb, FS_BELOW_LEFT);
-          diffuse(px, cy + 1, el, ea, eb, FS_BELOW);
-          diffuse(px + 1, cy + 1, el, ea, eb, FS_BELOW_RIGHT);
+          diffuse(px + 1, cy, el, ea, eb, FS_RIGHT * ditherStrength);
+          diffuse(px - 1, cy + 1, el, ea, eb, FS_BELOW_LEFT * ditherStrength);
+          diffuse(px, cy + 1, el, ea, eb, FS_BELOW * ditherStrength);
+          diffuse(px + 1, cy + 1, el, ea, eb, FS_BELOW_RIGHT * ditherStrength);
         }
       }
     }

@@ -73,6 +73,18 @@ included).
 All three choices persist in the browser via localStorage, alongside your
 palette.
 
+## Image and style controls
+
+- **Contrast / saturation** — pre-encode adjustments (−100…+100) applied
+  to the resampled grid. Boosting both usually helps: the LEGO palette has
+  far less dynamic range than a photo.
+- **Dither strength** — scales the Floyd–Steinberg error diffusion
+  (0 = off, 100% = full). Lower values reduce single-plate "confetti" in
+  flat regions at the cost of rougher gradients.
+- **Leading** — darkens strong edges before matching so region boundaries
+  snap to black/dark gray, like the lead came in stained glass (pairs well
+  with trans colors).
+
 ## Palette
 
 The default palette is a curated set of current-production LEGO colors. Use

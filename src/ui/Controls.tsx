@@ -8,8 +8,14 @@ import type { ViewMode } from './optionsStorage';
 interface ControlsProps {
   cellWidth: number;
   onCellWidth: (n: number) => void;
-  dither: boolean;
-  onDither: (b: boolean) => void;
+  ditherStrength: number;
+  onDitherStrength: (n: number) => void;
+  contrast: number;
+  onContrast: (n: number) => void;
+  saturation: number;
+  onSaturation: (n: number) => void;
+  leading: boolean;
+  onLeading: (b: boolean) => void;
   setId: PieceSetId;
   onSetId: (s: PieceSetId) => void;
   mode: TilingMode;
@@ -36,8 +42,14 @@ export function Controls(props: ControlsProps) {
   const {
     cellWidth,
     onCellWidth,
-    dither,
-    onDither,
+    ditherStrength,
+    onDitherStrength,
+    contrast,
+    onContrast,
+    saturation,
+    onSaturation,
+    leading,
+    onLeading,
     setId,
     onSetId,
     mode,
@@ -150,16 +162,72 @@ export function Controls(props: ControlsProps) {
         </select>
       </section>
 
+      <section>
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-neutral-300">Image</span>
+          <button
+            type="button"
+            onClick={() => {
+              onContrast(0);
+              onSaturation(0);
+              onDitherStrength(100);
+            }}
+            className="rounded border border-neutral-700 px-2 py-0.5 text-xs text-neutral-400 hover:border-amber-500 hover:text-amber-400"
+          >
+            reset
+          </button>
+        </div>
+        <label htmlFor="contrast" className="mb-0.5 block text-xs text-neutral-500">
+          contrast ({contrast > 0 ? '+' : ''}{contrast})
+        </label>
+        <input
+          id="contrast"
+          type="range"
+          min={-100}
+          max={100}
+          step={5}
+          value={contrast}
+          onChange={(e) => onContrast(Number(e.target.value))}
+          className="w-full accent-amber-500"
+        />
+        <label htmlFor="saturation" className="mt-2 mb-0.5 block text-xs text-neutral-500">
+          saturation ({saturation > 0 ? '+' : ''}{saturation})
+        </label>
+        <input
+          id="saturation"
+          type="range"
+          min={-100}
+          max={100}
+          step={5}
+          value={saturation}
+          onChange={(e) => onSaturation(Number(e.target.value))}
+          className="w-full accent-amber-500"
+        />
+        <label htmlFor="dither-strength" className="mt-2 mb-0.5 block text-xs text-neutral-500">
+          dither, Floyd–Steinberg ({ditherStrength === 0 ? 'off' : `${ditherStrength}%`})
+        </label>
+        <input
+          id="dither-strength"
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={ditherStrength}
+          onChange={(e) => onDitherStrength(Number(e.target.value))}
+          className="w-full accent-amber-500"
+        />
+      </section>
+
       <section className="flex items-center gap-2">
         <input
-          id="dither"
+          id="leading"
           type="checkbox"
-          checked={dither}
-          onChange={(e) => onDither(e.target.checked)}
+          checked={leading}
+          onChange={(e) => onLeading(e.target.checked)}
           className="accent-amber-500"
         />
-        <label htmlFor="dither" className="text-neutral-300">
-          Dither (Floyd–Steinberg)
+        <label htmlFor="leading" className="text-neutral-300">
+          Leading (black outlines, stained glass)
         </label>
       </section>
 
