@@ -1,7 +1,9 @@
 /**
  * Palette persistence: the user's palette (toggles + custom colors) survives
  * reloads via localStorage. Anything unparseable or invalid falls back to
- * the curated defaults.
+ * the curated defaults. Curated colors added after the user's palette was
+ * stored (e.g. the trans colors) are merged in with their default state, so
+ * returning users see new colors without losing their toggles/customs.
  */
 
 import type { PaletteColor } from '../core/types';
@@ -28,7 +30,14 @@ export function loadStoredPalette(): PaletteColor[] {
     ) {
       return defaultPalette();
     }
-    return validatePalette(palette).length === 0 ? palette : defaultPalette();
+    if (validatePalette(palette).length > 0) return defaultPalette();
+    // Merge in curated colors the stored palette predates.
+    const storedIds = new Set(palette.map((c) => c.id));
+    const merged = [
+      ...palette,
+      ...defaultPalette().filter((c) => !storedIds.has(c.id)),
+    ];
+    return merged;
   } catch {
     return defaultPalette();
   }

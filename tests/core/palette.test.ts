@@ -9,8 +9,10 @@ import type { PaletteColor } from '../../src/core/types';
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 
 describe('defaultPalette', () => {
-  it('loads 36 colors', () => {
-    expect(defaultPalette()).toHaveLength(36);
+  it('loads 49 colors: 36 opaque + 13 trans', () => {
+    const palette = defaultPalette();
+    expect(palette).toHaveLength(49);
+    expect(palette.filter((c) => c.translucent)).toHaveLength(13);
   });
 
   it('has valid #RRGGBB hex for every color', () => {
@@ -24,10 +26,10 @@ describe('defaultPalette', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('marks every color lego + enabled', () => {
+  it('marks opaque colors lego + enabled, trans colors lego + disabled', () => {
     for (const c of defaultPalette()) {
       expect(c.brand).toBe('lego');
-      expect(c.enabled).toBe(true);
+      expect(c.enabled).toBe(!c.translucent);
     }
   });
 
@@ -43,6 +45,13 @@ describe('enabledColors', () => {
     const palette = defaultPalette();
     palette[0].enabled = false;
     expect(enabledColors(palette)).toHaveLength(35);
+  });
+
+  it('excludes trans colors by default, includes them when enabled', () => {
+    const palette = defaultPalette();
+    expect(enabledColors(palette).some((c) => c.translucent)).toBe(false);
+    for (const c of palette) c.enabled = true;
+    expect(enabledColors(palette).filter((c) => c.translucent)).toHaveLength(13);
   });
 });
 

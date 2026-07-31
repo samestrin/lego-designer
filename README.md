@@ -80,6 +80,13 @@ The default palette is a curated set of current-production LEGO colors. Use
 brand — gobricks etc.). Your palette persists in the browser via
 localStorage; "Reset to defaults" restores the curated set.
 
+Thirteen **trans colors** (Trans-Clear, Trans-Red, Trans-Light Blue, …) ship
+disabled by default — enable them in the palette editor when you want the
+stained-glass look. They render glassy in the preview and match on their
+apparent (lit) color, which varies with your lighting/backing, so tune the
+hex values to your stock. Note: trans colors are common as 1×1 plates but
+rare as larger pieces, so block mode may plan pieces that are hard to buy.
+
 ## Roadmap
 
 - Flat baseplate mode (classic top-down stud mosaics)

@@ -34,5 +34,18 @@
   { "id": "light-nougat", "name": "Light Nougat", "hex": "#F6D7B3", "brand": "lego", "enabled": true },
   { "id": "sand-green", "name": "Sand Green", "hex": "#A0BCAC", "brand": "lego", "enabled": true },
   { "id": "earth-green", "name": "Earth Green", "hex": "#00451A", "brand": "lego", "enabled": true },
-  { "id": "aqua", "name": "Aqua", "hex": "#B3D7D1", "brand": "lego", "enabled": true }
+  { "id": "aqua", "name": "Aqua", "hex": "#B3D7D1", "brand": "lego", "enabled": true },
+  { "id": "trans-clear", "name": "Trans-Clear", "hex": "#F4F4F4", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-black", "name": "Trans-Black", "hex": "#635F52", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-red", "name": "Trans-Red", "hex": "#C91A09", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-orange", "name": "Trans-Orange", "hex": "#F08F1C", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-neon-yellow", "name": "Trans-Neon Yellow", "hex": "#DAB000", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-yellow", "name": "Trans-Yellow", "hex": "#F5CD30", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-neon-green", "name": "Trans-Neon Green", "hex": "#C9E82C", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-green", "name": "Trans-Green", "hex": "#237841", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-light-blue", "name": "Trans-Light Blue", "hex": "#B4D2E3", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-medium-blue", "name": "Trans-Medium Blue", "hex": "#68BCC5", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-dark-blue", "name": "Trans-Dark Blue", "hex": "#0020A0", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-purple", "name": "Trans-Purple", "hex": "#8320B7", "brand": "lego", "enabled": false, "translucent": true },
+  { "id": "trans-pink", "name": "Trans-Pink", "hex": "#E4ADC8", "brand": "lego", "enabled": false, "translucent": true }
 ]

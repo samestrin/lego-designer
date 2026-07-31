@@ -37,6 +37,9 @@ export interface PaletteColor {
   hex: string;
   brand: string;
   enabled: boolean;
+  /** Transparent/trans colors render glassy in the preview; hex is the
+   *  apparent (lit) color used for matching. */
+  translucent?: boolean;
 }
 
 export interface Cell {

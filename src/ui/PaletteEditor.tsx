@@ -23,6 +23,7 @@ export function PaletteEditor({ palette, onChange, onClose }: PaletteEditorProps
   const [name, setName] = useState('');
   const [hex, setHex] = useState('#C91A09');
   const [brand, setBrand] = useState('');
+  const [translucent, setTranslucent] = useState(false);
 
   const toggle = (id: string) => {
     onChange(
@@ -40,10 +41,18 @@ export function PaletteEditor({ palette, onChange, onClose }: PaletteEditorProps
     }
     onChange([
       ...palette,
-      { id, name: trimmed, hex: hex.toUpperCase(), brand: brand.trim() || 'gobricks', enabled: true },
+      {
+        id,
+        name: trimmed,
+        hex: hex.toUpperCase(),
+        brand: brand.trim() || 'gobricks',
+        enabled: true,
+        ...(translucent ? { translucent: true } : {}),
+      },
     ]);
     setName('');
     setBrand('');
+    setTranslucent(false);
   };
 
   const enabledCount = palette.filter((c) => c.enabled).length;
@@ -90,6 +99,11 @@ export function PaletteEditor({ palette, onChange, onClose }: PaletteEditorProps
                 style={{ backgroundColor: c.hex }}
               />
               <span className="flex-1 text-neutral-200">{c.name}</span>
+              {c.translucent && (
+                <span className="rounded border border-sky-800 px-1 text-[10px] text-sky-400">
+                  trans
+                </span>
+              )}
               <span className="text-xs text-neutral-500">{c.brand}</span>
             </label>
           ))}
@@ -128,6 +142,15 @@ export function PaletteEditor({ palette, onChange, onClose }: PaletteEditorProps
               Add
             </button>
           </div>
+          <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-neutral-400">
+            <input
+              type="checkbox"
+              checked={translucent}
+              onChange={(e) => setTranslucent(e.target.checked)}
+              className="accent-amber-500"
+            />
+            translucent (trans-clear / trans-color)
+          </label>
           <button
             type="button"
             onClick={() => onChange(defaultPalette())}

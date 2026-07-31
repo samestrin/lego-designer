@@ -56,8 +56,32 @@ export function Preview({ mosaic, tiling, viewMode, showMismatches }: PreviewPro
       w: number,
       h: number,
       hex: string,
+      translucent = false,
     ) => {
       ctx.fillStyle = hex;
+      if (translucent) {
+        // Glass look: slightly dimmed fill, bright diagonal gloss streak,
+        // light outline instead of the opaque bevel.
+        ctx.save();
+        ctx.globalAlpha = 0.8;
+        ctx.fillRect(left, top, w, h);
+        ctx.restore();
+        const gw = Math.max(1.5, w * 0.18);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.30)';
+        ctx.beginPath();
+        ctx.moveTo(left + w * 0.15, top + h);
+        ctx.lineTo(left + w * 0.15 + gw, top + h);
+        ctx.lineTo(left + w * 0.55 + gw, top);
+        ctx.lineTo(left + w * 0.55, top);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.fillRect(left, top, w, 1);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
+        return;
+      }
       ctx.fillRect(left, top, w, h);
       // Bevel: lit top edge, shadowed bottom edge.
       ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
@@ -91,6 +115,7 @@ export function Preview({ mosaic, tiling, viewMode, showMismatches }: PreviewPro
             p.piece.w * subW,
             p.piece.h * rowH,
             p.color.hex,
+            p.color.translucent,
           );
         }
         // Mismatch overlay is cell-based; drawn on the tipped view only
@@ -121,6 +146,7 @@ export function Preview({ mosaic, tiling, viewMode, showMismatches }: PreviewPro
             p.piece.h * rowH,
             p.piece.w * subW,
             p.color.hex,
+            p.color.translucent,
           );
         }
       }
