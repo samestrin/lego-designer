@@ -1,22 +1,17 @@
 import { useMemo } from 'react';
-import type { Mosaic } from '../core/types';
-import { countParts, partLabel, partsToCsv } from '../core/partsList';
+import type { Placement } from '../core/tiling';
+import { countParts, pieceLabel, partsToCsv } from '../core/partsList';
 import { downloadText } from './download';
 
 interface PartsViewProps {
-  mosaic: Mosaic;
-  consolidate: boolean;
+  tiling: Placement[];
 }
 
-/** Aggregated piece counts per part+color, with CSV export. */
-export function PartsView({ mosaic, consolidate }: PartsViewProps) {
-  const counts = useMemo(
-    () => countParts(mosaic, { consolidate }),
-    [mosaic, consolidate],
-  );
+/** Aggregated piece counts per piece+color, with CSV export. */
+export function PartsView({ tiling }: PartsViewProps) {
+  const counts = useMemo(() => countParts(tiling), [tiling]);
   const rows = [...counts.entries()];
   const total = rows.reduce((n, [, r]) => n + r.count, 0);
-  const bricks = rows.reduce((n, [, r]) => n + (r.part === 'brick' ? r.count : 0), 0);
 
   return (
     <div className="flex h-full flex-col">
@@ -29,10 +24,7 @@ export function PartsView({ mosaic, consolidate }: PartsViewProps) {
           Download CSV
         </button>
         <span className="text-xs text-neutral-500">
-          {rows.length} {consolidate ? 'part/color combos' : 'colors'} ·{' '}
-          {consolidate
-            ? `${total.toLocaleString()} pieces (${(total - bricks).toLocaleString()} plates + ${bricks.toLocaleString()} bricks)`
-            : `${total.toLocaleString()} plates total`}
+          {rows.length} piece/color combos · {total.toLocaleString()} pieces total
         </span>
       </div>
       <div className="flex-1 overflow-auto p-4">
@@ -48,7 +40,7 @@ export function PartsView({ mosaic, consolidate }: PartsViewProps) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(([key, { part, color, count }]) => (
+            {rows.map(([key, { piece, color, count }]) => (
               <tr key={key} className="border-b border-neutral-800">
                 <td className="py-1.5 pr-3">
                   <span
@@ -57,7 +49,7 @@ export function PartsView({ mosaic, consolidate }: PartsViewProps) {
                   />
                 </td>
                 <td className="py-1.5 pr-3 text-neutral-200">{color.name}</td>
-                <td className="py-1.5 pr-3 text-neutral-400">{partLabel(part)}</td>
+                <td className="py-1.5 pr-3 text-neutral-400">{pieceLabel(piece)}</td>
                 <td className="py-1.5 pr-3 text-neutral-400">{color.brand}</td>
                 <td className="py-1.5 pr-3 font-mono text-xs text-neutral-400">
                   {color.hex}

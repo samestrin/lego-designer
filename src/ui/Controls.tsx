@@ -1,15 +1,21 @@
 import { useMemo } from 'react';
 import type { Mosaic } from '../core/types';
-import { displayHeightMm, displayWidthMm, totalPlates } from '../core/types';
-import { countParts } from '../core/partsList';
+import { displayHeightMm, displayWidthMm } from '../core/types';
+import type { PieceSetId, Placement, TilingMode } from '../core/tiling';
+import { PIECE_SETS } from '../core/tiling';
+import type { ViewMode } from './optionsStorage';
 
 interface ControlsProps {
   cellWidth: number;
   onCellWidth: (n: number) => void;
   dither: boolean;
   onDither: (b: boolean) => void;
-  consolidate: boolean;
-  onConsolidate: (b: boolean) => void;
+  setId: PieceSetId;
+  onSetId: (s: PieceSetId) => void;
+  mode: TilingMode;
+  onMode: (m: TilingMode) => void;
+  viewMode: ViewMode;
+  onViewMode: (v: ViewMode) => void;
   offsetX: number;
   offsetY: number;
   onOffsets: (x: number, y: number) => void;
@@ -17,10 +23,14 @@ interface ControlsProps {
   onShowMismatches: (b: boolean) => void;
   mismatchCount: number;
   mosaic: Mosaic | null;
+  tiling: Placement[] | null;
   onOpenPalette: () => void;
 }
 
 const MM_PER_INCH = 25.4;
+
+const selectClass =
+  'w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-300 hover:border-amber-500';
 
 export function Controls(props: ControlsProps) {
   const {
@@ -28,8 +38,12 @@ export function Controls(props: ControlsProps) {
     onCellWidth,
     dither,
     onDither,
-    consolidate,
-    onConsolidate,
+    setId,
+    onSetId,
+    mode,
+    onMode,
+    viewMode,
+    onViewMode,
     offsetX,
     offsetY,
     onOffsets,
@@ -37,6 +51,7 @@ export function Controls(props: ControlsProps) {
     onShowMismatches,
     mismatchCount,
     mosaic,
+    tiling,
     onOpenPalette,
   } = props;
 
@@ -46,15 +61,17 @@ export function Controls(props: ControlsProps) {
     : `${(widthMm / MM_PER_INCH).toFixed(1)}" wide`;
 
   const pieceCounts = useMemo(() => {
-    if (!mosaic || !consolidate) return null;
-    let plates = 0;
-    let bricks = 0;
-    for (const { part, count } of countParts(mosaic, { consolidate }).values()) {
-      if (part === 'brick') bricks += count;
-      else plates += count;
+    if (!tiling) return null;
+    const byPart = new Map<string, number>();
+    for (const p of tiling) {
+      byPart.set(p.piece.partNum, (byPart.get(p.piece.partNum) ?? 0) + 1);
     }
-    return { plates, bricks, total: plates + bricks };
-  }, [mosaic, consolidate]);
+    const breakdown = [...byPart.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([partNum, n]) => `${n.toLocaleString()}×${partNum}`)
+      .join(', ');
+    return { total: tiling.length, breakdown };
+  }, [tiling]);
 
   return (
     <div className="flex flex-col gap-5 p-3 text-sm">
@@ -74,31 +91,63 @@ export function Controls(props: ControlsProps) {
         />
         <p className="mt-1 text-xs text-neutral-500">
           display {sizeLabel}
-          {mosaic &&
-            (pieceCounts ? (
-              <>
-                {' '}
-                · {pieceCounts.total.toLocaleString()} pieces (
-                {pieceCounts.plates.toLocaleString()} plates +{' '}
-                {pieceCounts.bricks.toLocaleString()} bricks)
-              </>
-            ) : (
-              <> · {totalPlates(mosaic).toLocaleString()} plates</>
-            ))}
+          {pieceCounts && (
+            <>
+              {' '}
+              · {pieceCounts.total.toLocaleString()} pieces (
+              {pieceCounts.breakdown})
+            </>
+          )}
         </p>
       </section>
 
-      <section className="flex items-center gap-2">
-        <input
-          id="consolidate"
-          type="checkbox"
-          checked={consolidate}
-          onChange={(e) => onConsolidate(e.target.checked)}
-          className="accent-amber-500"
-        />
-        <label htmlFor="consolidate" className="text-neutral-300">
-          Merge 3-plate runs into 1×1 bricks (3005)
+      <section>
+        <label htmlFor="piece-set" className="mb-1 block text-neutral-300">
+          Piece set
         </label>
+        <select
+          id="piece-set"
+          value={setId}
+          onChange={(e) => onSetId(e.target.value as PieceSetId)}
+          className={selectClass}
+        >
+          {Object.entries(PIECE_SETS).map(([id, set]) => (
+            <option key={id} value={id}>
+              {set.label}
+            </option>
+          ))}
+        </select>
+      </section>
+
+      <section>
+        <label htmlFor="tiling-mode" className="mb-1 block text-neutral-300">
+          Mode
+        </label>
+        <select
+          id="tiling-mode"
+          value={mode}
+          onChange={(e) => onMode(e.target.value as TilingMode)}
+          className={selectClass}
+        >
+          <option value="block">Block (fewest pieces)</option>
+          <option value="ansi">ANSI (seam texture)</option>
+        </select>
+      </section>
+
+      <section>
+        <label htmlFor="view-mode" className="mb-1 block text-neutral-300">
+          Preview
+        </label>
+        <select
+          id="view-mode"
+          value={viewMode}
+          onChange={(e) => onViewMode(e.target.value as ViewMode)}
+          className={selectClass}
+        >
+          <option value="tipped">Tipped (display)</option>
+          <option value="building">Building (wall)</option>
+          <option value="both">Side by side</option>
+        </select>
       </section>
 
       <section className="flex items-center gap-2">

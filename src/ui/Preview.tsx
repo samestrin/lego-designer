@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Mosaic } from '../core/types';
-import { displayWidthMm, mosaicPlateWidth, totalPlates } from '../core/types';
-import { consolidateRow, rowPlates } from '../core/consolidate';
-import type { Segment } from '../core/consolidate';
-import { countParts } from '../core/partsList';
+import { displayWidthMm, mosaicPlateWidth } from '../core/types';
+import type { Placement } from '../core/tiling';
+import type { ViewMode } from './optionsStorage';
 import { MISMATCH_THRESHOLD } from './mismatch';
 
 interface PreviewProps {
   mosaic: Mosaic;
+  tiling: Placement[];
+  viewMode: ViewMode;
   showMismatches: boolean;
-  consolidate: boolean;
 }
 
 /** Target on-screen width for the default (fit) zoom. */
@@ -18,94 +18,125 @@ const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 16;
 
 /**
- * Canvas rendering of the mosaic at `s` screen px per mm: each sub-pixel is
- * a 3.2s × 8s rect in the plate's color, with a light top / dark bottom
- * bevel and a thin dark gap between plates to read as stacked edges.
- * With `consolidate` on, same-color runs of 3 plates render as one smooth
- * 9.6s × 8s brick face — no gap lines inside a brick segment.
+ * Canvas rendering of the tiling at `s` screen px per mm. Each Placement is
+ * one smooth rect in its color with a light top / dark bottom bevel and a
+ * thin dark outline — no seams inside a piece.
+ *
+ * Two orientations of the same physical object:
+ * - tipped: the finished display — piece (x,y) → left x×3.2s, top y×8s.
+ * - building: the standing wall as seen while building, transposed — stud y
+ *   runs left-to-right (8s each), course x runs bottom-to-top so course 1
+ *   sits at the BOTTOM, matching the guide: top = (3W − x − w)×3.2s.
  */
-export function Preview({ mosaic, showMismatches, consolidate }: PreviewProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export function Preview({ mosaic, tiling, viewMode, showMismatches }: PreviewProps) {
+  const tippedRef = useRef<HTMLCanvasElement>(null);
+  const buildingRef = useRef<HTMLCanvasElement>(null);
   // null = auto-fit to the pane; the slider/buttons pin an explicit zoom.
   const [zoom, setZoom] = useState<number | null>(null);
 
-  const fitZoom = Math.min(
-    ZOOM_MAX,
-    Math.max(ZOOM_MIN, FIT_PX / displayWidthMm(mosaic)),
-  );
+  const plateWidth = mosaicPlateWidth(mosaic);
+  const showTipped = viewMode !== 'building';
+  const showBuilding = viewMode !== 'tipped';
+
+  // Fit the widest thing on screen: one view, or both side by side.
+  const fitWidthMm =
+    (showTipped ? displayWidthMm(mosaic) : 0) +
+    (showBuilding ? mosaic.rows * 8 : 0);
+  const fitZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, FIT_PX / fitWidthMm));
   const s = zoom ?? fitZoom;
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return;
-
     const subW = 3.2 * s;
     const rowH = 8 * s;
-    canvas.width = Math.ceil(mosaic.cellWidth * 3 * subW);
-    canvas.height = Math.ceil(mosaic.rows * rowH);
 
-    ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const drawPiece = (
+      ctx: CanvasRenderingContext2D,
+      left: number,
+      top: number,
+      w: number,
+      h: number,
+      hex: string,
+    ) => {
+      ctx.fillStyle = hex;
+      ctx.fillRect(left, top, w, h);
+      // Bevel: lit top edge, shadowed bottom edge.
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+      ctx.fillRect(left, top, w, 1);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+      ctx.fillRect(left, top + h - 1, w, 1);
+      // Thin dark outline per piece — no seams inside a piece.
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
+    };
 
-    for (let y = 0; y < mosaic.rows; y++) {
-      const plates = rowPlates(mosaic, y);
-      const segments: Segment[] = consolidate
-        ? consolidateRow(plates)
-        : plates.map((color) => ({
-            color,
-            part: 'plate' as const,
-            pieces: 1,
-            plates: 1,
-          }));
-      let px = 0;
-      for (const seg of segments) {
-        const w = seg.plates * subW;
-        const py = y * rowH;
-        ctx.fillStyle = seg.color.hex;
-        ctx.fillRect(px, py, w, rowH);
-        // Bevel: lit top edge, shadowed bottom edge.
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
-        ctx.fillRect(px, py, w, 1);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
-        ctx.fillRect(px, py + rowH - 1, w, 1);
-        // Gap between neighboring pieces; a brick face has none inside.
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-        ctx.fillRect(px + w - 1, py, 1, rowH);
-        // Faint outline so multi-brick runs still read as separate bricks.
-        if (seg.part === 'brick') {
-          ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-          ctx.lineWidth = 1;
-          for (let b = 0; b < seg.pieces; b++) {
-            const bw = 3 * subW;
-            ctx.strokeRect(px + b * bw + 0.5, py + 0.5, bw - 1, rowH - 1);
-          }
+    const prep = (canvas: HTMLCanvasElement | null, wMm: number, hMm: number) => {
+      const ctx = canvas?.getContext('2d');
+      if (!canvas || !ctx) return null;
+      canvas.width = Math.ceil(wMm * s);
+      canvas.height = Math.ceil(hMm * s);
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return ctx;
+    };
+
+    if (showTipped) {
+      const ctx = prep(tippedRef.current, plateWidth * 3.2, mosaic.rows * 8);
+      if (ctx) {
+        for (const p of tiling) {
+          drawPiece(
+            ctx,
+            p.x * subW,
+            p.y * rowH,
+            p.piece.w * subW,
+            p.piece.h * rowH,
+            p.color.hex,
+          );
         }
-        px += w;
-      }
-      if (showMismatches) {
-        for (let x = 0; x < mosaic.cellWidth; x++) {
-          const cell = mosaic.cells[y * mosaic.cellWidth + x];
-          if (cell.error > MISMATCH_THRESHOLD) {
-            ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x * 3 * subW + 1, y * rowH + 1, 3 * subW - 2, rowH - 2);
+        // Mismatch overlay is cell-based; drawn on the tipped view only
+        // (transposing cell rects onto the building view adds little).
+        if (showMismatches) {
+          for (let y = 0; y < mosaic.rows; y++) {
+            for (let x = 0; x < mosaic.cellWidth; x++) {
+              const cell = mosaic.cells[y * mosaic.cellWidth + x];
+              if (cell.error > MISMATCH_THRESHOLD) {
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x * 3 * subW + 1, y * rowH + 1, 3 * subW - 2, rowH - 2);
+              }
+            }
           }
         }
       }
     }
-  }, [mosaic, s, showMismatches, consolidate]);
+
+    if (showBuilding) {
+      const ctx = prep(buildingRef.current, mosaic.rows * 8, plateWidth * 3.2);
+      if (ctx) {
+        for (const p of tiling) {
+          drawPiece(
+            ctx,
+            p.y * rowH,
+            (plateWidth - p.x - p.piece.w) * subW,
+            p.piece.h * rowH,
+            p.piece.w * subW,
+            p.color.hex,
+          );
+        }
+      }
+    }
+  }, [mosaic, tiling, s, showTipped, showBuilding, showMismatches, plateWidth]);
 
   const pieceCounts = useMemo(() => {
-    if (!consolidate) return null;
-    let plates = 0;
-    let bricks = 0;
-    for (const { part, count } of countParts(mosaic, { consolidate }).values()) {
-      if (part === 'brick') bricks += count;
-      else plates += count;
+    const byPart = new Map<string, number>();
+    for (const p of tiling) {
+      byPart.set(p.piece.partNum, (byPart.get(p.piece.partNum) ?? 0) + 1);
     }
-    return { plates, bricks, total: plates + bricks };
-  }, [mosaic, consolidate]);
+    return [...byPart.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([partNum, n]) => `${n.toLocaleString()}×${partNum}`)
+      .join(', ');
+  }, [tiling]);
 
   const zoomLabel = useMemo(() => `${Math.round((s / fitZoom) * 100)}%`, [s, fitZoom]);
 
@@ -145,15 +176,25 @@ export function Preview({ mosaic, showMismatches, consolidate }: PreviewProps) {
           fit
         </button>
       </div>
-      <div className="flex flex-1 items-center justify-center overflow-auto p-4">
-        <canvas ref={canvasRef} className="max-w-none" />
+      <div className="flex flex-1 items-center justify-center gap-6 overflow-auto p-4">
+        {showBuilding && (
+          <figure className="flex flex-col items-center gap-1">
+            <canvas ref={buildingRef} className="max-w-none" />
+            <figcaption className="text-xs text-neutral-500">building</figcaption>
+          </figure>
+        )}
+        {showTipped && (
+          <figure className="flex flex-col items-center gap-1">
+            <canvas ref={tippedRef} className="max-w-none" />
+            {viewMode === 'both' && (
+              <figcaption className="text-xs text-neutral-500">tipped</figcaption>
+            )}
+          </figure>
+        )}
       </div>
       <p className="border-t border-neutral-800 px-3 py-2 text-xs text-neutral-500">
-        grid {mosaic.cellWidth}×{mosaic.rows} cells · {mosaicPlateWidth(mosaic)}{' '}
-        plates/row ·{' '}
-        {pieceCounts
-          ? `${pieceCounts.total.toLocaleString()} pieces (${pieceCounts.plates.toLocaleString()} plates + ${pieceCounts.bricks.toLocaleString()} bricks)`
-          : `${totalPlates(mosaic).toLocaleString()} plates`}
+        grid {mosaic.cellWidth}×{mosaic.rows} cells · {plateWidth} plates/row ·{' '}
+        {tiling.length.toLocaleString()} pieces ({pieceCounts})
       </p>
     </div>
   );

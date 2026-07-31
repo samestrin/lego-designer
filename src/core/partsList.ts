@@ -1,57 +1,37 @@
 /**
  * Parts list aggregation.
  *
- * Counts 1×1 plates per palette color across the whole mosaic. Patterned
- * after quilt-core's aggregatePiecesByColor. With `consolidate` on, runs of
- * 3 same-color plates are counted as 1×1 bricks (3005) instead — a brick
- * counts as one physical piece, not three.
+ * Counts physical pieces per piece+color across a tiling. Patterned after
+ * quilt-core's aggregatePiecesByColor. A piece counts as one physical part
+ * regardless of how many sub-pixels it covers.
  */
 
-import type { Mosaic, PaletteColor } from './types';
-import type { PartKind } from './consolidate';
-import { cellPlates } from './types';
-import { consolidateRow, rowPlates } from './consolidate';
+import type { PaletteColor } from './types';
+import type { PieceDef, Placement } from './tiling';
 
 export type PartsCounts = Map<
   string,
-  { part: PartKind; color: PaletteColor; count: number }
+  { piece: PieceDef; color: PaletteColor; count: number }
 >;
 
-/** Part label used in the guide header and CSV export. */
-export function partLabel(part: PartKind): string {
-  return part === 'brick' ? 'brick (3005)' : 'plate (3024)';
+/** Part label used in the parts table and CSV export. */
+export function pieceLabel(piece: PieceDef): string {
+  return `${piece.name} (${piece.partNum})`;
 }
 
-/** Count pieces per part+color, sorted by count descending. */
-export function countParts(
-  mosaic: Mosaic,
-  opts?: { consolidate?: boolean },
-): PartsCounts {
+/** Count pieces per piece+color, sorted by count descending. */
+export function countParts(tiling: Placement[]): PartsCounts {
   const counts = new Map<
     string,
-    { part: PartKind; color: PaletteColor; count: number }
+    { piece: PieceDef; color: PaletteColor; count: number }
   >();
-  const add = (part: PartKind, color: PaletteColor, n: number) => {
-    const key = `${part}:${color.id}`;
+  for (const p of tiling) {
+    const key = `${p.piece.partNum}:${p.color.id}`;
     const entry = counts.get(key);
     if (entry) {
-      entry.count += n;
+      entry.count++;
     } else {
-      counts.set(key, { part, color, count: n });
-    }
-  };
-
-  if (opts?.consolidate) {
-    for (let y = 0; y < mosaic.rows; y++) {
-      for (const seg of consolidateRow(rowPlates(mosaic, y))) {
-        add(seg.part, seg.color, seg.pieces);
-      }
-    }
-  } else {
-    for (const cell of mosaic.cells) {
-      for (const plate of cellPlates(cell)) {
-        add('plate', plate, 1);
-      }
+      counts.set(key, { piece: p.piece, color: p.color, count: 1 });
     }
   }
 
@@ -64,9 +44,9 @@ export function countParts(
 /** Serialize a parts count map to CSV. */
 export function partsToCsv(counts: PartsCounts): string {
   const lines = ['part,id,name,hex,brand,count'];
-  for (const { part, color, count } of counts.values()) {
+  for (const { piece, color, count } of counts.values()) {
     lines.push(
-      [partLabel(part), color.id, color.name, color.hex, color.brand, count]
+      [pieceLabel(piece), color.id, color.name, color.hex, color.brand, count]
         .map(csvField)
         .join(','),
     );

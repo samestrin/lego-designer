@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { encodeMosaic } from '../../src/core/encoder';
 import { defaultPalette } from '../../src/core/palette';
 import { countParts } from '../../src/core/partsList';
+import { tileMosaic } from '../../src/core/tiling';
 import type { PixelData } from '../../src/core/types';
 
 function makePixels(
@@ -66,11 +67,11 @@ describe('encodeMosaic', () => {
       }
     }
 
-    const counts = countParts(mosaic);
+    const counts = countParts(tileMosaic(mosaic, 'plates-1x1', 'block'));
     const total = [...counts.values()].reduce((s, e) => s + e.count, 0);
     expect(total).toBe(3 * mosaic.cellWidth * mosaic.rows);
-    expect(counts.get('plate:black')?.count).toBe(12);
-    expect(counts.get('plate:white')?.count).toBe(12);
+    expect(counts.get('3024:black')?.count).toBe(12);
+    expect(counts.get('3024:white')?.count).toBe(12);
   });
 
   it('dithers a black→white gradient into a mix of splits or colors, deterministically', () => {

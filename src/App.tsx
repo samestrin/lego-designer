@@ -3,6 +3,7 @@ import type { PaletteColor, PixelData } from './core/types';
 import { encodeMosaic } from './core/encoder';
 import { generateGuide } from './core/guide';
 import { enabledColors } from './core/palette';
+import { tileMosaic } from './core/tiling';
 import { loadImageFile, windowedCrop } from './image/load';
 import { Controls } from './ui/Controls';
 import { DropZone } from './ui/DropZone';
@@ -11,6 +12,10 @@ import { PaletteEditor } from './ui/PaletteEditor';
 import { PartsView } from './ui/PartsView';
 import { Preview } from './ui/Preview';
 import { countMismatches } from './ui/mismatch';
+import {
+  loadStoredOptions,
+  saveStoredOptions,
+} from './ui/optionsStorage';
 import { loadStoredPalette, saveStoredPalette } from './ui/paletteStorage';
 
 type Tab = 'preview' | 'guide' | 'parts';
@@ -25,7 +30,7 @@ function App() {
   const [image, setImage] = useState<{ pixels: PixelData; url: string } | null>(null);
   const [cellWidth, setCellWidth] = useState(16);
   const [dither, setDither] = useState(true);
-  const [consolidate, setConsolidate] = useState(true);
+  const [options, setOptions] = useState(loadStoredOptions);
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
   const [palette, setPalette] = useState<PaletteColor[]>(loadStoredPalette);
@@ -35,6 +40,7 @@ function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => saveStoredPalette(palette), [palette]);
+  useEffect(() => saveStoredOptions(options), [options]);
 
   const handleFile = useCallback(async (file: File) => {
     try {
@@ -64,9 +70,17 @@ function App() {
     return encodeMosaic(cropped, cellWidth, palette, { dither });
   }, [cropped, cellWidth, palette, dither]);
 
+  const tiling = useMemo(
+    () => (mosaic ? tileMosaic(mosaic, options.setId, options.mode) : null),
+    [mosaic, options.setId, options.mode],
+  );
+
   const guide = useMemo(
-    () => (mosaic ? generateGuide(mosaic, { consolidate }) : null),
-    [mosaic, consolidate],
+    () =>
+      mosaic
+        ? generateGuide(mosaic, { set: options.setId, mode: options.mode })
+        : null,
+    [mosaic, options.setId, options.mode],
   );
   const mismatchCount = useMemo(
     () => (mosaic ? countMismatches(mosaic) : 0),
@@ -99,8 +113,12 @@ function App() {
                   onCellWidth={setCellWidth}
                   dither={dither}
                   onDither={setDither}
-                  consolidate={consolidate}
-                  onConsolidate={setConsolidate}
+                  setId={options.setId}
+                  onSetId={(setId) => setOptions((o) => ({ ...o, setId }))}
+                  mode={options.mode}
+                  onMode={(mode) => setOptions((o) => ({ ...o, mode }))}
+                  viewMode={options.viewMode}
+                  onViewMode={(viewMode) => setOptions((o) => ({ ...o, viewMode }))}
                   offsetX={offsetX}
                   offsetY={offsetY}
                   onOffsets={(x, y) => {
@@ -111,6 +129,7 @@ function App() {
                   onShowMismatches={setShowMismatches}
                   mismatchCount={mismatchCount}
                   mosaic={mosaic}
+                  tiling={tiling}
                   onOpenPalette={() => setPaletteOpen(true)}
                 />
               </aside>
@@ -141,13 +160,14 @@ function App() {
                   ) : tab === 'preview' ? (
                     <Preview
                       mosaic={mosaic}
+                      tiling={tiling!}
+                      viewMode={options.viewMode}
                       showMismatches={showMismatches}
-                      consolidate={consolidate}
                     />
                   ) : tab === 'guide' ? (
                     <GuideView guide={guide ?? ''} />
                   ) : (
-                    <PartsView mosaic={mosaic} consolidate={consolidate} />
+                    <PartsView tiling={tiling!} />
                   )}
                 </div>
               </main>

@@ -1,29 +1,26 @@
 /**
  * Plain-text build guide generation.
  *
- * Rows are listed top-to-bottom as displayed. Within a row, plates are
- * listed left-to-right; the builder stacks each row as a tower in listed
- * order, then tips it so the first plate listed lands at the left edge.
- *
- * With `consolidate` on, runs of 3 same-color plates are listed as 1×1
- * bricks (3005): three stacked plates are 9.6mm, exactly one brick height.
+ * The mosaic is built as one standing wall (studs up), H studs wide × 3W
+ * courses tall, bottom to top; course 1 is the bottom course and becomes the
+ * LEFT edge of the display after tipping. Each course lists only the pieces
+ * that START on it (their lowest course), left to right by stud; pieces
+ * spanning several courses appear once. When the wall is complete it is
+ * tipped 90° clockwise onto its right side, so the bottom course lands at
+ * the left edge and the left stud-column becomes the top row.
  */
 
 import type { Mosaic } from './types';
-import {
-  displayHeightMm,
-  displayWidthMm,
-  mosaicPlateWidth,
-  totalPlates,
-} from './types';
-import { consolidateRow, rowPlates } from './consolidate';
-import { countParts, partLabel } from './partsList';
+import { displayHeightMm, displayWidthMm, mosaicPlateWidth } from './types';
+import type { PieceDef, PieceSetId, Placement, TilingMode } from './tiling';
+import { PIECE_SETS, tileMosaic } from './tiling';
+import { countParts } from './partsList';
 
 export function generateGuide(
   mosaic: Mosaic,
-  opts?: { consolidate?: boolean },
+  opts: { set: PieceSetId; mode: TilingMode },
 ): string {
-  const consolidate = opts?.consolidate ?? false;
+  const tiling = tileMosaic(mosaic, opts.set, opts.mode);
   const { cellWidth, rows } = mosaic;
   const plateWidth = mosaicPlateWidth(mosaic);
   const widthMm = displayWidthMm(mosaic);
@@ -31,56 +28,58 @@ export function generateGuide(
   const widthIn = widthMm / 25.4;
   const heightIn = heightMm / 25.4;
 
-  let partsLine: string;
-  if (consolidate) {
-    const totals = new Map<string, number>();
-    for (const { part, count } of countParts(mosaic, { consolidate }).values()) {
-      totals.set(part, (totals.get(part) ?? 0) + count);
+  // One entry per piece type used, aggregated across colors; totals match
+  // countParts for the same tiling.
+  const totals = new Map<string, { piece: PieceDef; count: number }>();
+  for (const { piece, count } of countParts(tiling).values()) {
+    const entry = totals.get(piece.partNum);
+    if (entry) {
+      entry.count += count;
+    } else {
+      totals.set(piece.partNum, { piece, count });
     }
-    const parts = ['plate', 'brick']
-      .filter((p) => (totals.get(p) ?? 0) > 0)
-      .map((p) => `${totals.get(p)}× 1×1 ${partLabel(p as 'plate' | 'brick')}`);
-    partsLine = `Parts: ${parts.join(', ')}`;
-  } else {
-    partsLine = `Parts: ${totalPlates(mosaic)}× 1×1 plate (3024)`;
   }
+  const partsLine = `Parts: ${[...totals.values()]
+    .map((t) => `${t.count}× ${t.piece.name} (${t.piece.partNum})`)
+    .join(', ')}`;
 
   const lines: string[] = [
     'LEGO DESIGNER — build guide',
     `Grid: ${cellWidth} cells × ${rows} rows (${plateWidth} plates wide) — display ≈ ${widthIn.toFixed(1)}" × ${heightIn.toFixed(1)}" (${widthMm} × ${heightMm} mm)`,
+    `Piece set: ${PIECE_SETS[opts.set].label} · Mode: ${opts.mode}`,
     partsLine,
     '',
-    'Build each row as a tower bottom-to-top in listed order, then tip and lay with the FIRST plate listed at the LEFT edge. Rows stack top-to-bottom.',
-    ...(consolidate
-      ? [
-          'Runs of 3 same-color plates are merged into 1×1 bricks (3005); brick faces are smooth (no seam lines).',
-        ]
-      : []),
+    `BUILD a standing wall ${rows} studs wide × ${plateWidth} courses tall, bottom to top. Each`,
+    'course below lists the pieces that START on that course, left to right by stud',
+    `(studs 1..${rows}). Pieces spanning multiple courses are listed only on their first.`,
+    'TIP: when the wall is complete, tip it 90° clockwise (onto its right side) — the',
+    'bottom course becomes the LEFT edge of the display, the left column the TOP row.',
     '',
   ];
 
-  for (let y = 0; y < rows; y++) {
-    const plates = rowPlates(mosaic, y);
-    const runs: string[] = [];
-    if (consolidate) {
-      for (const seg of consolidateRow(plates)) {
-        runs.push(`${seg.pieces}×${seg.color.name} ${seg.part}`);
-      }
+  // Group placements by their first (lowest) course = x; a piece spanning
+  // courses x..x+w-1 rests on the courses below, so it is placed when the
+  // build reaches course x.
+  const byCourse = new Map<number, Placement[]>();
+  for (const p of tiling) {
+    const list = byCourse.get(p.x);
+    if (list) {
+      list.push(p);
     } else {
-      let runName: string | null = null;
-      let runCount = 0;
-      for (const plate of plates) {
-        if (plate.name === runName) {
-          runCount++;
-        } else {
-          if (runName !== null) runs.push(`${runCount}×${runName}`);
-          runName = plate.name;
-          runCount = 1;
-        }
-      }
-      if (runName !== null) runs.push(`${runCount}×${runName}`);
+      byCourse.set(p.x, [p]);
     }
-    lines.push(`Row ${String(y + 1).padStart(2, '0')}: ${runs.join(', ')}`);
+  }
+  for (const x of [...byCourse.keys()].sort((a, b) => a - b)) {
+    const entries = byCourse.get(x)!;
+    entries.sort((a, b) => a.y - b.y);
+    const runs = entries.map((p) => {
+      const studs =
+        p.piece.h === 1
+          ? `stud ${p.y + 1}`
+          : `studs ${p.y + 1}-${p.y + p.piece.h}`;
+      return `${p.color.name} ${p.piece.name} (${studs})`;
+    });
+    lines.push(`Course ${String(x + 1).padStart(3, '0')}: ${runs.join(', ')}`);
   }
 
   lines.push(
