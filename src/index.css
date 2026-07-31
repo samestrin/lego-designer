@@ -14,8 +14,69 @@ body {
 }
 
 @media print {
+  @page {
+    margin: 12mm;
+  }
+
   body {
     background: #fff;
     color: #000;
+  }
+
+  .print-guide {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 8.5pt;
+    line-height: 1.45;
+    color: #000;
+  }
+
+  .print-guide h1 {
+    font-size: 12pt;
+    font-weight: 700;
+    margin: 0 0 6pt;
+  }
+
+  .print-guide .meta {
+    margin: 0 0 2pt;
+  }
+
+  .print-guide .instructions {
+    margin: 6pt 0 8pt;
+    max-width: 34em;
+  }
+
+  .print-guide .courses {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .print-guide .courses li {
+    margin: 0 0 1.5pt;
+    padding-left: 5.5em; /* hanging indent: wrapped lines clear the label */
+    text-indent: -5.5em;
+    break-inside: avoid;
+  }
+
+  .print-guide .course-label {
+    font-weight: 700;
+  }
+
+  .print-guide .piece {
+    white-space: nowrap;
+  }
+
+  .print-guide .swatch {
+    display: inline-block;
+    width: 6pt;
+    height: 6pt;
+    margin-right: 2pt;
+    border: 0.5pt solid #666;
+    vertical-align: baseline;
+  }
+
+  .print-guide .frame {
+    margin-top: 8pt;
+    max-width: 34em;
   }
 }

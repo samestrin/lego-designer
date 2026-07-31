@@ -16,10 +16,21 @@ import type { PieceDef, PieceSetId, Placement, TilingMode } from './tiling';
 import { PIECE_SETS, tileMosaic } from './tiling';
 import { countParts } from './partsList';
 
-export function generateGuide(
+/** Structured guide content: the plain-text guide and the print view are
+ *  both renderings of this. */
+export interface GuideData {
+  gridLine: string;
+  pieceSetLine: string;
+  partsLine: string;
+  buildLines: string[];
+  courses: { course: number; pieces: { text: string; hex: string }[] }[];
+  frameLine: string;
+}
+
+export function buildGuideData(
   mosaic: Mosaic,
   opts: { set: PieceSetId; mode: TilingMode },
-): string {
+): GuideData {
   const tiling = tileMosaic(mosaic, opts.set, opts.mode);
   const { cellWidth, rows } = mosaic;
   const plateWidth = mosaicPlateWidth(mosaic);
@@ -43,20 +54,6 @@ export function generateGuide(
     .map((t) => `${t.count}× ${t.piece.name} (${t.piece.partNum})`)
     .join(', ')}`;
 
-  const lines: string[] = [
-    'LEGO DESIGNER — build guide',
-    `Grid: ${cellWidth} cells × ${rows} rows (${plateWidth} plates wide) — display ≈ ${widthIn.toFixed(1)}" × ${heightIn.toFixed(1)}" (${widthMm} × ${heightMm} mm)`,
-    `Piece set: ${PIECE_SETS[opts.set].label} · Mode: ${opts.mode}`,
-    partsLine,
-    '',
-    `BUILD a standing wall ${rows} studs wide × ${plateWidth} courses tall, bottom to top. Each`,
-    'course below lists the pieces that START on that course, left to right by stud',
-    `(studs 1..${rows}). Pieces spanning multiple courses are listed only on their first.`,
-    'TIP: when the wall is complete, tip it 90° clockwise (onto its right side) — the',
-    'bottom course becomes the LEFT edge of the display, the left column the TOP row.',
-    '',
-  ];
-
   // Group placements by their first (lowest) course = x; a piece spanning
   // courses x..x+w-1 rests on the courses below, so it is placed when the
   // build reaches course x.
@@ -69,23 +66,57 @@ export function generateGuide(
       byCourse.set(p.x, [p]);
     }
   }
+  const courses: GuideData['courses'] = [];
   for (const x of [...byCourse.keys()].sort((a, b) => a - b)) {
     const entries = byCourse.get(x)!;
     entries.sort((a, b) => a.y - b.y);
-    const runs = entries.map((p) => {
-      const studs =
-        p.piece.h === 1
-          ? `stud ${p.y + 1}`
-          : `studs ${p.y + 1}-${p.y + p.piece.h}`;
-      return `${p.color.name} ${p.piece.name} (${studs})`;
+    courses.push({
+      course: x + 1,
+      pieces: entries.map((p) => {
+        const studs =
+          p.piece.h === 1
+            ? `stud ${p.y + 1}`
+            : `studs ${p.y + 1}-${p.y + p.piece.h}`;
+        return { text: `${p.color.name} ${p.piece.name} (${studs})`, hex: p.color.hex };
+      }),
     });
-    lines.push(`Course ${String(x + 1).padStart(3, '0')}: ${runs.join(', ')}`);
   }
 
-  lines.push(
-    '',
-    'FRAME: build a staggered border of 1×8/1×10 plates in 3 offset layers along the top and bottom edges, with SNOT-brick side columns to capture the bar ends. Adjust plate lengths and layer count to your bins.',
-  );
+  return {
+    gridLine: `Grid: ${cellWidth} cells × ${rows} rows (${plateWidth} plates wide) — display ≈ ${widthIn.toFixed(1)}" × ${heightIn.toFixed(1)}" (${widthMm} × ${heightMm} mm)`,
+    pieceSetLine: `Piece set: ${PIECE_SETS[opts.set].label} · Mode: ${opts.mode}`,
+    partsLine,
+    buildLines: [
+      `BUILD a standing wall ${rows} studs wide × ${plateWidth} courses tall, bottom to top. Each`,
+      'course below lists the pieces that START on that course, left to right by stud',
+      `(studs 1..${rows}). Pieces spanning multiple courses are listed only on their first.`,
+      'TIP: when the wall is complete, tip it 90° clockwise (onto its right side) — the',
+      'bottom course becomes the LEFT edge of the display, the left column the TOP row.',
+    ],
+    courses,
+    frameLine:
+      'FRAME: build a staggered border of 1×8/1×10 plates in 3 offset layers along the top and bottom edges, with SNOT-brick side columns to capture the bar ends. Adjust plate lengths and layer count to your bins.',
+  };
+}
 
+export function generateGuide(
+  mosaic: Mosaic,
+  opts: { set: PieceSetId; mode: TilingMode },
+): string {
+  const data = buildGuideData(mosaic, opts);
+  const lines: string[] = [
+    'LEGO DESIGNER — build guide',
+    data.gridLine,
+    data.pieceSetLine,
+    data.partsLine,
+    '',
+    ...data.buildLines,
+    '',
+  ];
+  for (const { course, pieces } of data.courses) {
+    const runs = pieces.map((p) => p.text);
+    lines.push(`Course ${String(course).padStart(3, '0')}: ${runs.join(', ')}`);
+  }
+  lines.push('', data.frameLine);
   return lines.join('\n');
 }

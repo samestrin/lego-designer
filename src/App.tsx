@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PaletteColor, PixelData } from './core/types';
 import { encodeMosaic } from './core/encoder';
-import { generateGuide } from './core/guide';
+import { buildGuideData, generateGuide } from './core/guide';
 import { enabledColors } from './core/palette';
 import { tileMosaic } from './core/tiling';
 import { loadImageFile, windowedCrop } from './image/load';
@@ -11,6 +11,7 @@ import { GuideView } from './ui/GuideView';
 import { PaletteEditor } from './ui/PaletteEditor';
 import { PartsView } from './ui/PartsView';
 import { Preview } from './ui/Preview';
+import { PrintGuide } from './ui/PrintGuide';
 import { countMismatches } from './ui/mismatch';
 import {
   loadStoredOptions,
@@ -79,6 +80,13 @@ function App() {
     () =>
       mosaic
         ? generateGuide(mosaic, { set: options.setId, mode: options.mode })
+        : null,
+    [mosaic, options.setId, options.mode],
+  );
+  const guideData = useMemo(
+    () =>
+      mosaic
+        ? buildGuideData(mosaic, { set: options.setId, mode: options.mode })
         : null,
     [mosaic, options.setId, options.mode],
   );
@@ -192,11 +200,7 @@ function App() {
       </div>
 
       {/* Print-only copy of the guide. */}
-      {guide && (
-        <pre className="hidden font-mono text-xs whitespace-pre print:block">
-          {guide}
-        </pre>
-      )}
+      {guideData && <PrintGuide data={guideData} />}
     </div>
   );
 }
