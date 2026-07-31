@@ -55,7 +55,7 @@ export function DropZone({ url, onFile }: DropZoneProps) {
   }
 
   return (
-    <div className="flex h-full items-center justify-center p-8">
+    <div className="flex items-center justify-center">
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
