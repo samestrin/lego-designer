@@ -56,6 +56,42 @@ export function PaletteEditor({ palette, onChange, onClose }: PaletteEditorProps
   };
 
   const enabledCount = palette.filter((c) => c.enabled).length;
+  const transColors = palette.filter((c) => c.translucent);
+  const opaqueColors = palette.filter((c) => !c.translucent);
+  const allTransOn = transColors.every((c) => c.enabled);
+  const someTransOn = transColors.some((c) => c.enabled);
+
+  const toggleAllTrans = () => {
+    const target = !allTransOn;
+    onChange(
+      palette.map((c) => (c.translucent ? { ...c, enabled: target } : c)),
+    );
+  };
+
+  const renderRow = (c: (typeof palette)[number]) => (
+    <label
+      key={c.id}
+      className="flex cursor-pointer items-center gap-3 border-b border-neutral-800 py-1.5 text-sm"
+    >
+      <input
+        type="checkbox"
+        checked={c.enabled}
+        onChange={() => toggle(c.id)}
+        className="accent-amber-500"
+      />
+      <span
+        className="h-4 w-4 shrink-0 rounded-sm border border-neutral-700"
+        style={{ backgroundColor: c.hex }}
+      />
+      <span className="flex-1 text-neutral-200">{c.name}</span>
+      {c.translucent && (
+        <span className="rounded border border-sky-800 px-1 text-[10px] text-sky-400">
+          trans
+        </span>
+      )}
+      <span className="text-xs text-neutral-500">{c.brand}</span>
+    </label>
+  );
 
   return (
     <div
@@ -83,30 +119,24 @@ export function PaletteEditor({ palette, onChange, onClose }: PaletteEditorProps
         </div>
 
         <div className="flex-1 overflow-auto px-4 py-2">
-          {palette.map((c) => (
-            <label
-              key={c.id}
-              className="flex cursor-pointer items-center gap-3 border-b border-neutral-800 py-1.5 text-sm"
-            >
-              <input
-                type="checkbox"
-                checked={c.enabled}
-                onChange={() => toggle(c.id)}
-                className="accent-amber-500"
-              />
-              <span
-                className="h-4 w-4 shrink-0 rounded-sm border border-neutral-700"
-                style={{ backgroundColor: c.hex }}
-              />
-              <span className="flex-1 text-neutral-200">{c.name}</span>
-              {c.translucent && (
-                <span className="rounded border border-sky-800 px-1 text-[10px] text-sky-400">
-                  trans
-                </span>
-              )}
-              <span className="text-xs text-neutral-500">{c.brand}</span>
-            </label>
-          ))}
+          {opaqueColors.map(renderRow)}
+          <label className="mt-2 flex cursor-pointer items-center gap-3 border-b border-neutral-700 py-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={allTransOn}
+              ref={(el) => {
+                if (el) el.indeterminate = someTransOn && !allTransOn;
+              }}
+              onChange={toggleAllTrans}
+              className="accent-sky-500"
+            />
+            <span className="flex-1 text-sky-300">
+              Trans colors ({transColors.filter((c) => c.enabled).length} of{' '}
+              {transColors.length})
+            </span>
+            <span className="text-xs text-neutral-500">all</span>
+          </label>
+          {transColors.map(renderRow)}
         </div>
 
         <div className="border-t border-neutral-800 p-4">
