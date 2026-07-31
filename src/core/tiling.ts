@@ -1,37 +1,43 @@
 /**
  * Mosaic tiling: cover the sub-pixel grid with monochrome LEGO pieces.
  *
- * Physical model: the whole mosaic is one ordinary standing wall (studs up,
- * stacked courses) tipped 90° onto its side. A wall course (3.2mm, vertical
- * while standing) maps to sub-pixel position x along a display row; a wall
- * stud-column (8mm, horizontal while standing) maps to display row y. So a
- * piece w courses × h studs covers a w×h block of the 3W×H sub-pixel grid,
- * and must be a single color. A plate is 1 course tall, a brick 3 courses
- * (9.6mm) — hence the shapes below.
+ * Physical model: the mosaic is one ordinary standing wall (studs up,
+ * stacked courses) and its face IS the display. The sub-pixel grid is
+ * cellWidth studs (x, 8mm) × 3*rows courses (y, 3.2mm); cell (cx, cy)
+ * covers x = cx, y = 3cy..3cy+2. A piece w studs × h courses covers a w×h
+ * block of that grid and must be a single color. A plate is 1 course tall,
+ * a brick 3 courses (9.6mm), tall bricks 2/3/5 bricks (6/9/15 courses) —
+ * hence the shapes below.
  */
 
 import type { Mosaic, PaletteColor } from './types';
-import { cellPlates, mosaicPlateWidth } from './types';
+import { cellPlates, mosaicCourseHeight } from './types';
 
 export interface PieceDef {
   partNum: string;
   name: string;
-  /** Courses spanned (sub-pixels along a display row). */
+  /** Studs spanned (sub-pixels along a display row). */
   w: number;
-  /** Studs spanned (display rows). */
+  /** Courses spanned (sub-pixels down a stud column). */
   h: number;
 }
 
 export const PIECES: Record<string, PieceDef> = {
   '3024': { partNum: '3024', name: 'Plate 1×1', w: 1, h: 1 },
-  '3023': { partNum: '3023', name: 'Plate 1×2', w: 1, h: 2 },
-  '3623': { partNum: '3623', name: 'Plate 1×3', w: 1, h: 3 },
-  '3710': { partNum: '3710', name: 'Plate 1×4', w: 1, h: 4 },
-  '3666': { partNum: '3666', name: 'Plate 1×6', w: 1, h: 6 },
-  '3005': { partNum: '3005', name: 'Brick 1×1', w: 3, h: 1 },
-  '3004': { partNum: '3004', name: 'Brick 1×2', w: 3, h: 2 },
+  '3023': { partNum: '3023', name: 'Plate 1×2', w: 2, h: 1 },
+  '3623': { partNum: '3623', name: 'Plate 1×3', w: 3, h: 1 },
+  '3710': { partNum: '3710', name: 'Plate 1×4', w: 4, h: 1 },
+  '3666': { partNum: '3666', name: 'Plate 1×6', w: 6, h: 1 },
+  '3005': { partNum: '3005', name: 'Brick 1×1', w: 1, h: 3 },
+  '3004': { partNum: '3004', name: 'Brick 1×2', w: 2, h: 3 },
   '3622': { partNum: '3622', name: 'Brick 1×3', w: 3, h: 3 },
-  '3010': { partNum: '3010', name: 'Brick 1×4', w: 3, h: 4 },
+  '3010': { partNum: '3010', name: 'Brick 1×4', w: 4, h: 3 },
+  '3245': { partNum: '3245', name: 'Brick 1×2×2', w: 2, h: 6 },
+  '14716': { partNum: '14716', name: 'Brick 1×1×3', w: 1, h: 9 },
+  '22886': { partNum: '22886', name: 'Brick 1×2×3', w: 2, h: 9 },
+  '49311': { partNum: '49311', name: 'Brick 1×4×3', w: 4, h: 9 },
+  '2453': { partNum: '2453', name: 'Brick 1×1×5', w: 1, h: 15 },
+  '2454': { partNum: '2454', name: 'Brick 1×2×5', w: 2, h: 15 },
 };
 
 export type PieceSetId = 'plates-1x1' | 'plates' | 'family' | 'extended';
@@ -53,7 +59,7 @@ export const PIECE_SETS: Record<
     pieces: [PIECES['3024'], PIECES['3023'], PIECES['3005'], PIECES['3004']],
   },
   extended: {
-    label: 'Extended: all 9 pieces',
+    label: 'Extended: all plates, bricks & tall bricks',
     pieces: [
       PIECES['3024'],
       PIECES['3023'],
@@ -64,6 +70,12 @@ export const PIECE_SETS: Record<
       PIECES['3004'],
       PIECES['3622'],
       PIECES['3010'],
+      PIECES['3245'],
+      PIECES['14716'],
+      PIECES['22886'],
+      PIECES['49311'],
+      PIECES['2453'],
+      PIECES['2454'],
     ],
   },
 };
@@ -73,45 +85,44 @@ export type TilingMode = 'block' | 'ansi';
 export interface Placement {
   piece: PieceDef;
   color: PaletteColor;
-  /** Leftmost sub-pixel covered (0..3W-w). */
+  /** Leftmost stud covered (0..W-w). */
   x: number;
-  /** Topmost display row covered (0..H-h). */
+  /** Topmost course covered (0..H-h). */
   y: number;
 }
 
-/** Plate colors of one display row, left to right. */
-export function rowPlates(mosaic: Mosaic, row: number): PaletteColor[] {
-  const plates: PaletteColor[] = [];
-  for (let x = 0; x < mosaic.cellWidth; x++) {
-    plates.push(...cellPlates(mosaic.cells[row * mosaic.cellWidth + x]));
-  }
-  return plates;
-}
-
-/** Sub-pixel color grid of the mosaic: grid[y][x], 3W wide × H tall. */
+/** Sub-pixel color grid of the mosaic: grid[y][x], cellWidth wide × 3*rows tall. */
 export function colorGrid(mosaic: Mosaic): PaletteColor[][] {
-  const grid: PaletteColor[][] = [];
-  for (let y = 0; y < mosaic.rows; y++) {
-    grid.push(rowPlates(mosaic, y));
+  const grid: PaletteColor[][] = Array.from(
+    { length: mosaicCourseHeight(mosaic) },
+    () => new Array<PaletteColor>(mosaic.cellWidth),
+  );
+  for (let cy = 0; cy < mosaic.rows; cy++) {
+    for (let cx = 0; cx < mosaic.cellWidth; cx++) {
+      const plates = cellPlates(mosaic.cells[cy * mosaic.cellWidth + cx]);
+      for (let o = 0; o < 3; o++) {
+        grid[3 * cy + o][cx] = plates[o];
+      }
+    }
   }
   return grid;
 }
 
 /**
- * Greedy tiling: scan rows top-to-bottom, left-to-right; at the first
- * uncovered sub-pixel, place the first piece (descending area in `block`
- * mode, ascending in `ansi` mode) whose w×h block is entirely uncovered and
- * monochrome. Ascending order lands on 1×1 plates everywhere — that IS the
- * intent of ansi mode: maximum seam texture. Every set contains the 1×1
- * plate, so the scan always completes. Deterministic.
+ * Greedy tiling: scan courses top-to-bottom, studs left-to-right; at the
+ * first uncovered sub-pixel, place the first piece (descending area in
+ * `block` mode, ascending in `ansi` mode) whose w×h block is entirely
+ * uncovered and monochrome. Ascending order lands on 1×1 plates everywhere
+ * — that IS the intent of ansi mode: maximum seam texture. Every set
+ * contains the 1×1 plate, so the scan always completes. Deterministic.
  */
 export function tileMosaic(
   mosaic: Mosaic,
   setId: PieceSetId,
   mode: TilingMode,
 ): Placement[] {
-  const width = mosaicPlateWidth(mosaic);
-  const height = mosaic.rows;
+  const width = mosaic.cellWidth;
+  const height = mosaicCourseHeight(mosaic);
   const grid = colorGrid(mosaic);
   const covered: boolean[][] = Array.from({ length: height }, () =>
     new Array<boolean>(width).fill(false),
