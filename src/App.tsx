@@ -70,10 +70,10 @@ function App() {
   }, []);
 
   // The encoder derives the row count from the cropped image's aspect
-  // (rows = round(h * 3*cellWidth / w)), and we always want the source's
-  // native aspect, so the crop is a fixed 90% window of the source — same
-  // aspect, so the aspect never changes — whose position the offset
-  // sliders move within the remaining 10% slack.
+  // (rows = round(h * cellWidth * (8/9.6) / w)), and we always want the
+  // source's native aspect, so the crop is a fixed 90% window of the
+  // source — same aspect, so the aspect never changes — whose position
+  // the offset sliders move within the remaining 10% slack.
   const cropped = useMemo(
     () => (image ? windowedCrop(image.pixels, offsetX, offsetY) : null),
     [image, offsetX, offsetY],
@@ -155,8 +155,6 @@ function App() {
                   onSetId={(setId) => setOptions((o) => ({ ...o, setId }))}
                   mode={options.mode}
                   onMode={(mode) => setOptions((o) => ({ ...o, mode }))}
-                  viewMode={options.viewMode}
-                  onViewMode={(viewMode) => setOptions((o) => ({ ...o, viewMode }))}
                   offsetX={offsetX}
                   offsetY={offsetY}
                   onOffsets={(x, y) => {
@@ -199,7 +197,6 @@ function App() {
                     <Preview
                       mosaic={mosaic}
                       tiling={tiling!}
-                      viewMode={options.viewMode}
                       showMismatches={showMismatches}
                     />
                   ) : tab === 'guide' ? (

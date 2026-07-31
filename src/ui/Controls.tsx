@@ -3,7 +3,6 @@ import type { Mosaic } from '../core/types';
 import { displayHeightMm, displayWidthMm } from '../core/types';
 import type { PieceSetId, Placement, TilingMode } from '../core/tiling';
 import { PIECE_SETS } from '../core/tiling';
-import type { ViewMode } from './optionsStorage';
 
 interface ControlsProps {
   cellWidth: number;
@@ -20,8 +19,6 @@ interface ControlsProps {
   onSetId: (s: PieceSetId) => void;
   mode: TilingMode;
   onMode: (m: TilingMode) => void;
-  viewMode: ViewMode;
-  onViewMode: (v: ViewMode) => void;
   offsetX: number;
   offsetY: number;
   onOffsets: (x: number, y: number) => void;
@@ -54,8 +51,6 @@ export function Controls(props: ControlsProps) {
     onSetId,
     mode,
     onMode,
-    viewMode,
-    onViewMode,
     offsetX,
     offsetY,
     onOffsets,
@@ -67,7 +62,7 @@ export function Controls(props: ControlsProps) {
     onOpenPalette,
   } = props;
 
-  const widthMm = cellWidth * 9.6;
+  const widthMm = cellWidth * 8;
   const sizeLabel = mosaic
     ? `${(widthMm / MM_PER_INCH).toFixed(1)}" × ${(displayHeightMm(mosaic) / MM_PER_INCH).toFixed(1)}" · ${displayWidthMm(mosaic)} × ${displayHeightMm(mosaic)} mm`
     : `${(widthMm / MM_PER_INCH).toFixed(1)}" wide`;
@@ -89,7 +84,7 @@ export function Controls(props: ControlsProps) {
     <div className="flex flex-col gap-5 p-3 text-sm">
       <section>
         <label htmlFor="cell-width" className="mb-1 block text-neutral-300">
-          Width: {cellWidth} cells = {cellWidth * 3} plates wide
+          Width: {cellWidth} cells = {cellWidth} studs wide
         </label>
         <input
           id="cell-width"
@@ -143,22 +138,6 @@ export function Controls(props: ControlsProps) {
         >
           <option value="block">Block (fewest pieces)</option>
           <option value="ansi">ANSI (seam texture)</option>
-        </select>
-      </section>
-
-      <section>
-        <label htmlFor="view-mode" className="mb-1 block text-neutral-300">
-          Preview
-        </label>
-        <select
-          id="view-mode"
-          value={viewMode}
-          onChange={(e) => onViewMode(e.target.value as ViewMode)}
-          className={selectClass}
-        >
-          <option value="tipped">Tipped (display)</option>
-          <option value="building">Building (wall)</option>
-          <option value="both">Side by side</option>
         </select>
       </section>
 

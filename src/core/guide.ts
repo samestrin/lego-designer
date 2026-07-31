@@ -1,17 +1,16 @@
 /**
  * Plain-text build guide generation.
  *
- * The mosaic is built as one standing wall (studs up), H studs wide × 3W
- * courses tall, bottom to top; course 1 is the bottom course and becomes the
- * LEFT edge of the display after tipping. Each course lists only the pieces
- * that START on it (their lowest course), left to right by stud; pieces
- * spanning several courses appear once. When the wall is complete it is
- * tipped 90° clockwise onto its right side, so the bottom course lands at
- * the left edge and the left stud-column becomes the top row.
+ * The mosaic is built as one standing wall (studs up), cellWidth studs wide
+ * × 3*rows courses tall, bottom to top — and the standing wall face IS the
+ * finished display; there is no tipping step. Course 1 is the bottom
+ * course. Each course lists only the pieces that START on it (their lowest
+ * course), left to right by stud; pieces spanning several courses appear
+ * once. What you see while building is what you get.
  */
 
 import type { Mosaic } from './types';
-import { displayHeightMm, displayWidthMm, mosaicPlateWidth } from './types';
+import { displayHeightMm, displayWidthMm, mosaicCourseHeight } from './types';
 import type { PieceDef, PieceSetId, Placement, TilingMode } from './tiling';
 import { PIECE_SETS, tileMosaic } from './tiling';
 import { countParts } from './partsList';
@@ -33,7 +32,7 @@ export function buildGuideData(
 ): GuideData {
   const tiling = tileMosaic(mosaic, opts.set, opts.mode);
   const { cellWidth, rows } = mosaic;
-  const plateWidth = mosaicPlateWidth(mosaic);
+  const courseHeight = mosaicCourseHeight(mosaic);
   const widthMm = displayWidthMm(mosaic);
   const heightMm = displayHeightMm(mosaic);
   const widthIn = widthMm / 25.4;
@@ -54,54 +53,56 @@ export function buildGuideData(
     .map((t) => `${t.count}× ${t.piece.name} (${t.piece.partNum})`)
     .join(', ')}`;
 
-  // Group placements by their first (lowest) course = x; a piece spanning
-  // courses x..x+w-1 rests on the courses below, so it is placed when the
-  // build reaches course x.
+  // Group placements by their starting (lowest) course, 1-based from the
+  // bottom: a piece covering grid rows y..y+h-1 from the top rests on the
+  // courses below, so it is placed when the build reaches that course.
+  const startCourse = (p: Placement) => courseHeight - p.y - p.piece.h + 1;
   const byCourse = new Map<number, Placement[]>();
   for (const p of tiling) {
-    const list = byCourse.get(p.x);
+    const c = startCourse(p);
+    const list = byCourse.get(c);
     if (list) {
       list.push(p);
     } else {
-      byCourse.set(p.x, [p]);
+      byCourse.set(c, [p]);
     }
   }
   const courses: GuideData['courses'] = [];
-  for (const x of [...byCourse.keys()].sort((a, b) => a - b)) {
-    const entries = byCourse.get(x)!;
-    entries.sort((a, b) => a.y - b.y);
+  for (const c of [...byCourse.keys()].sort((a, b) => a - b)) {
+    const entries = byCourse.get(c)!;
+    entries.sort((a, b) => a.x - b.x);
     courses.push({
-      course: x + 1,
+      course: c,
       pieces: entries.map((p) => {
         const studs =
-          p.piece.h === 1
-            ? `stud ${p.y + 1}`
-            : `studs ${p.y + 1}-${p.y + p.piece.h}`;
+          p.piece.w === 1
+            ? `stud ${p.x + 1}`
+            : `studs ${p.x + 1}-${p.x + p.piece.w}`;
         return { text: `${p.color.name} ${p.piece.name} (${studs})`, hex: p.color.hex };
       }),
     });
   }
 
   return {
-    gridLine: `Grid: ${cellWidth} cells × ${rows} rows (${plateWidth} plates wide) — display ≈ ${widthIn.toFixed(1)}" × ${heightIn.toFixed(1)}" (${widthMm} × ${heightMm} mm)`,
+    gridLine: `Grid: ${cellWidth} cells × ${rows} rows (${courseHeight} courses tall) — display ≈ ${widthIn.toFixed(1)}" × ${heightIn.toFixed(1)}" (${widthMm} × ${heightMm} mm)`,
     pieceSetLine: `Piece set: ${PIECE_SETS[opts.set].label} · Mode: ${opts.mode}`,
     partsLine,
     buildLines: [
-      `BUILD a standing wall ${rows} studs wide × ${plateWidth} courses tall, bottom to top. Each`,
-      'course below lists the pieces that START on that course, left to right by stud',
-      `(studs 1..${rows}). Pieces spanning multiple courses are listed only on their first.`,
-      'TIP: when the wall is complete, tip it 90° clockwise (onto its right side) — the',
-      'bottom course becomes the LEFT edge of the display, the left column the TOP row.',
+      `BUILD a standing wall ${cellWidth} studs wide × ${courseHeight} courses tall, bottom to top.`,
+      'The standing wall face IS the finished display — what you see while building is what',
+      'you get. Course 1 is the bottom course. Each course below lists the pieces that START',
+      `on that course (their lowest course), left to right by stud (studs 1..${cellWidth}).`,
+      'Pieces spanning multiple courses are listed only on their first.',
     ],
     courses,
     frameLines: [
       'FRAME: a suggested construction — adjust to your bins; nothing here is counted in the parts list.',
-      '1. Top and bottom edges: 3 layers of long thin plates (1×8/1×10), each layer offset about half a',
-      '   plate length so the seams never line up (running bond) — that is what gives the border its strength.',
-      '2. Corners: tie the top/bottom borders to the side columns with corner brackets (e.g. 2357 or a',
-      '   1×2-1×2 bracket) so the frame acts as one rigid ring.',
-      '3. Sides: a column of SNOT bricks (36841 1×1-1×1, studs facing the display) captures the outermost',
-      '   bar ends and gives the corner brackets something to bite into.',
+      '1. Bottom border first: 3 layers of long thin plates (1×8/1×10), each layer offset about half a',
+      '   plate length so the seams never line up (running bond) — that is what gives the border its',
+      '   strength — with SNOT corner pieces so the sides can wrap.',
+      '2. Build the mosaic up from the bottom border; side borders (a column of SNOT bricks,',
+      '   36841 1×1-1×1, studs facing inward) rise alongside, capturing the mosaic\'s left/right edges.',
+      '3. Top border caps it last; corner brackets (e.g. 2357 or a 1×2-1×2 bracket) tie the ring.',
     ],
   };
 }

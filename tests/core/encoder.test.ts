@@ -3,6 +3,7 @@ import { encodeMosaic } from '../../src/core/encoder';
 import { defaultPalette } from '../../src/core/palette';
 import { countParts } from '../../src/core/partsList';
 import { tileMosaic } from '../../src/core/tiling';
+import { cellPlates } from '../../src/core/types';
 import type { PixelData } from '../../src/core/types';
 
 function makePixels(
@@ -30,16 +31,16 @@ const solid = (r: number, g: number, b: number) => () =>
 describe('encodeMosaic', () => {
   it('encodes a solid-color image as uniform split-3 cells with near-zero error', () => {
     // Exact Bright Red hex, so the nearest palette match is error-free.
-    // 12×10 source at cellWidth 4 → 12 sub-pixels wide; rows =
-    // round(10 * 12 * 0.4 / 12) = 4 (sub-pixel aspect 3.2:8).
+    // 12×10 source at cellWidth 4 → 4 studs wide; rows =
+    // round(10 * 4 * (8/9.6) / 12) = 3 (cell aspect 8:9.6).
     const pixels = makePixels(12, 10, solid(0xc9, 0x1a, 0x09));
     const mosaic = encodeMosaic(pixels, 4, defaultPalette(), {
       dither: false,
     });
 
     expect(mosaic.cellWidth).toBe(4);
-    expect(mosaic.rows).toBe(4);
-    expect(mosaic.cells).toHaveLength(16);
+    expect(mosaic.rows).toBe(3);
+    expect(mosaic.cells).toHaveLength(12);
     for (const cell of mosaic.cells) {
       expect(cell.split).toBe(3);
       expect(cell.fg.id).toBe('bright-red');
@@ -49,7 +50,7 @@ describe('encodeMosaic', () => {
   });
 
   it('encodes a black-left / white-right image with correct halves and plate counts', () => {
-    // 24×12 source → rows = round(12 * 12 * 0.4 / 24) = 2.
+    // 24×12 source → rows = round(12 * 4 * (8/9.6) / 24) = 2.
     const pixels = makePixels(24, 12, (x) =>
       x < 12 ? [0, 0, 0] : [255, 255, 255],
     );
@@ -72,6 +73,42 @@ describe('encodeMosaic', () => {
     expect(total).toBe(3 * mosaic.cellWidth * mosaic.rows);
     expect(counts.get('3024:black')?.count).toBe(12);
     expect(counts.get('3024:white')?.count).toBe(12);
+  });
+
+  it('a horizontal light-over-dark split produces bottom-fill cells on the boundary', () => {
+    // 32×27 source at cellWidth 4 → rows = round(27 * 4 * (8/9.6) / 32) = 3,
+    // so the 4×9 sub-pixel grid samples 8×3 source px per sub-pixel. The
+    // white/black boundary at y=12 lands exactly on the second sub-pixel of
+    // the middle cell row: samples top-to-bottom [white, black, black].
+    const pixels = makePixels(32, 27, (_x, y) =>
+      y < 12 ? [255, 255, 255] : [0, 0, 0],
+    );
+    const mosaic = encodeMosaic(pixels, 4, defaultPalette(), {
+      dither: false,
+    });
+
+    expect(mosaic.rows).toBe(3);
+    for (let x = 0; x < mosaic.cellWidth; x++) {
+      const top = mosaic.cells[x];
+      expect(top.split).toBe(3);
+      expect(top.fg.id).toBe('white');
+
+      const boundary = mosaic.cells[mosaic.cellWidth + x];
+      expect(boundary.fgSide).toBe('bottom');
+      expect(boundary.split).toBe(2);
+      expect(boundary.fg.id).toBe('black');
+      expect(boundary.bg.id).toBe('white');
+      // Plates top-to-bottom: white, black, black.
+      expect(cellPlates(boundary).map((p) => p.id)).toEqual([
+        'white',
+        'black',
+        'black',
+      ]);
+
+      const bottom = mosaic.cells[2 * mosaic.cellWidth + x];
+      expect(bottom.split).toBe(3);
+      expect(bottom.fg.id).toBe('black');
+    }
   });
 
   it('dithers a black→white gradient into a mix of splits or colors, deterministically', () => {

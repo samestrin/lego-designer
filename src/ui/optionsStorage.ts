@@ -1,18 +1,15 @@
 /**
- * Options persistence: piece set, tiling mode, and preview view mode survive
- * reloads via localStorage. Anything unparseable or invalid falls back to
- * the defaults.
+ * Options persistence: piece set and tiling mode survive reloads via
+ * localStorage. Anything unparseable or invalid falls back to the defaults;
+ * unknown stored keys (e.g. the retired viewMode) are ignored.
  */
 
 import type { PieceSetId, TilingMode } from '../core/tiling';
 import { PIECE_SETS } from '../core/tiling';
 
-export type ViewMode = 'tipped' | 'building' | 'both';
-
 export interface DesignerOptions {
   setId: PieceSetId;
   mode: TilingMode;
-  viewMode: ViewMode;
   /** 0–100; 0 = dither off. */
   ditherStrength: number;
   /** -100..100; 0 = unchanged. */
@@ -26,7 +23,6 @@ const STORAGE_KEY = 'lego-designer-options-v1';
 export const DEFAULT_OPTIONS: DesignerOptions = {
   setId: 'family',
   mode: 'block',
-  viewMode: 'tipped',
   ditherStrength: 100,
   contrast: 0,
   saturation: 0,
@@ -34,7 +30,6 @@ export const DEFAULT_OPTIONS: DesignerOptions = {
 };
 
 const MODES: TilingMode[] = ['block', 'ansi'];
-const VIEW_MODES: ViewMode[] = ['tipped', 'building', 'both'];
 
 function clampNum(v: unknown, lo: number, hi: number, fallback: number): number {
   return typeof v === 'number' && Number.isFinite(v)
@@ -55,9 +50,6 @@ export function loadStoredOptions(): DesignerOptions {
       mode: MODES.includes(parsed.mode as TilingMode)
         ? (parsed.mode as TilingMode)
         : DEFAULT_OPTIONS.mode,
-      viewMode: VIEW_MODES.includes(parsed.viewMode as ViewMode)
-        ? (parsed.viewMode as ViewMode)
-        : DEFAULT_OPTIONS.viewMode,
       ditherStrength: clampNum(parsed.ditherStrength, 0, 100, DEFAULT_OPTIONS.ditherStrength),
       contrast: clampNum(parsed.contrast, -100, 100, DEFAULT_OPTIONS.contrast),
       saturation: clampNum(parsed.saturation, -100, 100, DEFAULT_OPTIONS.saturation),

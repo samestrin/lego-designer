@@ -18,7 +18,7 @@ const STEPS: { n: string; title: string; body: string }[] = [
   {
     n: '3',
     title: 'Print & build',
-    body: 'The guide lists pieces course by course. Build the wall, tip it, frame it.',
+    body: "The guide lists pieces course by course. Build the wall bottom-up from the frame, that's it.",
   },
 ];
 
@@ -32,10 +32,11 @@ export function Welcome({ onFile }: WelcomeProps) {
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-neutral-400">
           Not studs-up — <span className="text-neutral-200">plate edges</span>. Each
-          1×1 plate shows a thin colored edge, three plates make one ANSI-style
-          cell (▌▐█), and the whole mosaic builds as a single wall you tip onto
-          its side. Pure pixel art by default — enable trans colors and leading
-          and it becomes literal stained glass.
+          1×1 plate shows a thin colored edge, three stacked plates make one
+          ANSI-style cell (▀▄█), and the whole mosaic builds as a single
+          standing wall — the face you build IS the display. Pure pixel art by
+          default — enable trans colors and leading and it becomes literal
+          stained glass.
         </p>
       </div>
 

@@ -5,10 +5,10 @@ import { defaultPalette } from '../../src/core/palette';
 import { countParts, partsToCsv } from '../../src/core/partsList';
 import { PIECES, tileMosaic } from '../../src/core/tiling';
 import type { PixelData } from '../../src/core/types';
-import { mosaicPlateWidth } from '../../src/core/types';
+import { mosaicCourseHeight } from '../../src/core/types';
 
 function halfBlackHalfWhite(): PixelData {
-  // 24×12 source at cellWidth 4 → 2 rows of 4 cells (3.2:8 sub-pixel aspect).
+  // 24×12 source at cellWidth 4 → 2 rows of 4 cells (8:9.6 cell aspect).
   const width = 24;
   const height = 12;
   const data = new Uint8ClampedArray(width * height * 4);
@@ -32,33 +32,36 @@ function testMosaic() {
 }
 
 describe('generateGuide', () => {
-  it('prints header, piece set/mode, build+tip instructions, and a frame appendix', () => {
+  it('prints header, piece set/mode, build instructions (no tip), and a frame appendix', () => {
     const guide = generateGuide(testMosaic(), { set: 'family', mode: 'block' });
     expect(guide).toContain('LEGO DESIGNER — build guide');
-    expect(guide).toContain('Grid: 4 cells × 2 rows (12 plates wide)');
+    expect(guide).toContain('Grid: 4 cells × 2 rows (6 courses tall)');
     expect(guide).toContain('Piece set:');
     expect(guide).toContain('Mode: block');
-    expect(guide).toContain('BUILD a standing wall 2 studs wide × 12 courses tall');
-    expect(guide).toContain('tip it 90° clockwise');
+    expect(guide).toContain('BUILD a standing wall 4 studs wide × 6 courses tall');
+    expect(guide).toContain('Course 1 is');
+    expect(guide).not.toMatch(/\btip/i);
     expect(guide).toContain('FRAME:');
+    expect(guide).toContain('Bottom border first');
+    expect(guide).toContain('Top border caps it last');
   });
 
   it('lists pieces on their starting course only, with stud spans', () => {
-    // family/block on the half-black fixture: four Brick 1×2 (3 courses × 2
-    // studs), starting on courses 1, 4, 7, 10.
+    // family/block on the half-black fixture: four Brick 1×2 (2 studs × 3
+    // courses), two starting on course 1 and two on course 4.
     const guide = generateGuide(testMosaic(), { set: 'family', mode: 'block' });
     const courseLines = guide.split('\n').filter((l) => l.startsWith('Course '));
     expect(courseLines).toEqual([
-      'Course 001: Black Brick 1×2 (studs 1-2)',
-      'Course 004: Black Brick 1×2 (studs 1-2)',
-      'Course 007: White Brick 1×2 (studs 1-2)',
-      'Course 010: White Brick 1×2 (studs 1-2)',
+      'Course 001: Black Brick 1×2 (studs 1-2), White Brick 1×2 (studs 3-4)',
+      'Course 004: Black Brick 1×2 (studs 1-2), White Brick 1×2 (studs 3-4)',
     ]);
   });
 
   it('uses singular "stud" for 1-stud pieces', () => {
     const guide = generateGuide(testMosaic(), { set: 'plates-1x1', mode: 'block' });
-    expect(guide).toContain('Course 001: Black Plate 1×1 (stud 1), Black Plate 1×1 (stud 2)');
+    expect(guide).toContain(
+      'Course 001: Black Plate 1×1 (stud 1), Black Plate 1×1 (stud 2), White Plate 1×1 (stud 3), White Plate 1×1 (stud 4)',
+    );
   });
 
   it('Parts line totals equal countParts per piece type', () => {
@@ -78,33 +81,34 @@ describe('generateGuide', () => {
     expect(guideTotals).toEqual(partTotals);
   });
 
-  it('course listings reconstruct to exactly the full 3W×H grid', () => {
+  it('course listings reconstruct to exactly the full W×3H grid', () => {
     const mosaic = testMosaic();
-    const width = mosaicPlateWidth(mosaic);
+    const height = mosaicCourseHeight(mosaic);
     const guide = generateGuide(mosaic, { set: 'extended', mode: 'block' });
-    const covered = Array.from({ length: mosaic.rows }, () =>
-      new Array<number>(width).fill(0),
+    const covered = Array.from({ length: height }, () =>
+      new Array<number>(mosaic.cellWidth).fill(0),
     );
     const byName = new Map(Object.values(PIECES).map((p) => [p.name, p]));
     for (const line of guide.split('\n')) {
       const courseMatch = /^Course (\d+): (.+)$/.exec(line);
       if (!courseMatch) continue;
-      const x = Number(courseMatch[1]) - 1; // course 1 = sub-pixel x 0
+      const course = Number(courseMatch[1]); // course 1 = bottom course
       for (const m of courseMatch[2].matchAll(
-        /((?:Plate|Brick) 1×\d) \((?:stud (\d+)|studs (\d+)-(\d+))\)/g,
+        /((?:Plate|Brick) 1×\d(?:×\d)?) \((?:stud (\d+)|studs (\d+)-(\d+))\)/g,
       )) {
         const studA = Number(m[2] ?? m[3]);
         const studB = Number(m[2] ?? m[4]);
         const piece = byName.get(m[1])!;
-        for (let dx = 0; dx < piece.w; dx++) {
-          for (let y = studA - 1; y <= studB - 1; y++) {
-            covered[y][x + dx]++;
+        for (let dy = 0; dy < piece.h; dy++) {
+          const y = height - course - dy; // grid row, 0 = top course
+          for (let x = studA - 1; x <= studB - 1; x++) {
+            covered[y][x]++;
           }
         }
       }
     }
-    for (let y = 0; y < mosaic.rows; y++) {
-      for (let x = 0; x < width; x++) {
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < mosaic.cellWidth; x++) {
         expect(covered[y][x]).toBe(1);
       }
     }
@@ -127,7 +131,7 @@ describe('countParts / partsToCsv', () => {
 
   it('writes a CSV header plus one row per piece+color', () => {
     // plates set on the half-black fixture: twelve 1×2 plates (one per
-    // column, spanning both rows), 6 per color.
+    // course row and color half), 6 per color.
     const counts = countParts(tileMosaic(testMosaic(), 'plates', 'block'));
     const lines = partsToCsv(counts).split('\n');
     expect(lines[0]).toBe('part,id,name,hex,brand,count');

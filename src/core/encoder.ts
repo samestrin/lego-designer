@@ -2,10 +2,10 @@
  * Mosaic encoder.
  *
  * Converts an image into a cell grid of LEGO 1×1 plate assignments.
- * Sub-pixels are 3.2mm wide × 8mm tall (1:2.5), so the resample is
- * anisotropic: the source is sampled at 3*cellWidth × rows where each
- * sub-pixel covers a 1:2.5 (w:h) region of the source. Row count is
- * derived from the image aspect accordingly (see SUBPIXEL_ASPECT).
+ * Sub-pixels are 8mm wide × 3.2mm tall (2.5:1), so the resample is
+ * anisotropic: the source is sampled at cellWidth × 3*rows where each
+ * sub-pixel covers a 2.5:1 (w:h) region of the source. Row count is
+ * derived from the image aspect accordingly (see CELL_ASPECT).
  */
 
 import type { Cell, Lab, Mosaic, PaletteColor, PixelData } from './types';
@@ -15,8 +15,8 @@ import { adjustPixelData } from './adjust';
 
 const TOP_K = 4;
 
-// Physical sub-pixel (plate edge) aspect: 3.2mm wide / 8mm tall.
-const SUBPIXEL_ASPECT = 3.2 / 8;
+// Physical cell aspect: 8mm wide / 9.6mm tall (1 stud × 3 courses).
+const CELL_ASPECT = 8 / 9.6;
 
 // Leading (stained-glass "lead came"): strong edges are darkened in the
 // resampled grid before matching, so edge cells naturally snap to black /
@@ -125,7 +125,7 @@ function topKNearest(sample: Lab, entries: PaletteEntry[], k: number): PaletteEn
 /** The 6 cell geometries: split 0, split 3, and split 1/2 from each side. */
 type Geometry =
   | { kind: 'solid'; color: PaletteEntry }
-  | { kind: 'split'; fg: PaletteEntry; bg: PaletteEntry; split: 1 | 2; fgSide: 'left' | 'right' };
+  | { kind: 'split'; fg: PaletteEntry; bg: PaletteEntry; split: 1 | 2; fgSide: 'top' | 'bottom' };
 
 function geometryAssignments(g: Geometry): [PaletteEntry, PaletteEntry, PaletteEntry] {
   if (g.kind === 'solid') {
@@ -133,7 +133,7 @@ function geometryAssignments(g: Geometry): [PaletteEntry, PaletteEntry, PaletteE
   }
   const plates: PaletteEntry[] = [g.bg, g.bg, g.bg];
   for (let i = 0; i < g.split; i++) {
-    plates[g.fgSide === 'left' ? i : 2 - i] = g.fg;
+    plates[g.fgSide === 'top' ? i : 2 - i] = g.fg;
   }
   return [plates[0], plates[1], plates[2]];
 }
@@ -142,7 +142,7 @@ function geometryCell(g: Geometry, error: number): Cell {
   if (g.kind === 'solid') {
     // All three plates one color; fg/bg choice is moot, so fg = bg and
     // split 3 by convention.
-    return { fg: g.color.color, bg: g.color.color, split: 3, fgSide: 'left', error };
+    return { fg: g.color.color, bg: g.color.color, split: 3, fgSide: 'top', error };
   }
   return {
     fg: g.fg.color,
@@ -166,8 +166,8 @@ export interface EncodeOptions {
 
 /**
  * Encode an image into a plate mosaic of `cellWidth` cells per row.
- * Rows are derived from the image aspect ratio: each row is one 8mm-tall
- * bar of 3*cellWidth sub-pixels.
+ * Rows are derived from the image aspect ratio: each cell is one stud wide
+ * and three courses tall, so the wall is cellWidth studs × 3*rows courses.
  */
 export function encodeMosaic(
   pixels: PixelData,
@@ -180,14 +180,14 @@ export function encodeMosaic(
     throw new Error('palette has no enabled colors');
   }
 
-  const subWidth = 3 * cellWidth;
-  // Each sub-pixel samples a 3.2:8 (w:h) region of the source, so the row
-  // count shrinks by SUBPIXEL_ASPECT relative to square-pixel sampling.
+  // Each cell samples an 8:9.6 (w:h) region of the source, so the row
+  // count shrinks by CELL_ASPECT relative to square-cell sampling.
   const rows = Math.max(
     1,
-    Math.round((pixels.height * subWidth * SUBPIXEL_ASPECT) / pixels.width),
+    Math.round((pixels.height * cellWidth * CELL_ASPECT) / pixels.width),
   );
-  const resampled = adjustPixelData(resampleBoxAverage(pixels, subWidth, rows), opts);
+  const subHeight = 3 * rows;
+  const resampled = adjustPixelData(resampleBoxAverage(pixels, cellWidth, subHeight), opts);
   const ditherStrength = opts.ditherStrength ?? 1;
 
   // Precompute Lab for each enabled palette color once.
@@ -196,7 +196,8 @@ export function encodeMosaic(
     return { color, lab: rgbToLab(r, g, b) };
   });
 
-  // Working Lab grid; dithering mutates this in place.
+  // Working Lab grid (cellWidth × 3*rows sub-pixels); dithering mutates
+  // this in place. Cell (cx, cy) covers x = cx, y = 3cy..3cy+2.
   const grid = toLabGrid(resampled);
   const cells: Cell[] = [];
 
@@ -205,11 +206,11 @@ export function encodeMosaic(
   // darken edge cells' luminance so the matcher snaps them to dark colors.
   if (opts.leading) {
     const mean = (cx: number, cy: number): Lab => {
-      const i0 = cy * subWidth + cx * 3;
+      const i0 = 3 * cy * cellWidth + cx;
       return {
-        l: (grid.l[i0] + grid.l[i0 + 1] + grid.l[i0 + 2]) / 3,
-        a: (grid.a[i0] + grid.a[i0 + 1] + grid.a[i0 + 2]) / 3,
-        b: (grid.b[i0] + grid.b[i0 + 1] + grid.b[i0 + 2]) / 3,
+        l: (grid.l[i0] + grid.l[i0 + cellWidth] + grid.l[i0 + 2 * cellWidth]) / 3,
+        a: (grid.a[i0] + grid.a[i0 + cellWidth] + grid.a[i0 + 2 * cellWidth]) / 3,
+        b: (grid.b[i0] + grid.b[i0 + cellWidth] + grid.b[i0 + 2 * cellWidth]) / 3,
       };
     };
     for (let cy = 0; cy < rows; cy++) {
@@ -226,7 +227,7 @@ export function encodeMosaic(
         if (edge > 0) {
           const scale = 1 - LEADING_DARKEN * edge;
           for (let o = 0; o < 3; o++) {
-            grid.l[cy * subWidth + cx * 3 + o] *= scale;
+            grid.l[(3 * cy + o) * cellWidth + cx] *= scale;
           }
         }
       }
@@ -237,8 +238,8 @@ export function encodeMosaic(
     v < lo ? lo : v > hi ? hi : v;
 
   const diffuse = (x: number, y: number, el: number, ea: number, eb: number, w: number) => {
-    if (x < 0 || x >= subWidth || y < 0 || y >= rows) return;
-    const i = y * subWidth + x;
+    if (x < 0 || x >= cellWidth || y < 0 || y >= subHeight) return;
+    const i = y * cellWidth + x;
     grid.l[i] = clamp(grid.l[i] + el * w, L_MIN, L_MAX);
     grid.a[i] = clamp(grid.a[i] + ea * w, AB_MIN, AB_MAX);
     grid.b[i] = clamp(grid.b[i] + eb * w, AB_MIN, AB_MAX);
@@ -246,18 +247,20 @@ export function encodeMosaic(
 
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cellWidth; cx++) {
-      const sx = cx * 3;
-      const i0 = cy * subWidth + sx;
+      const i0 = 3 * cy * cellWidth + cx;
       const samples: Lab[] = [0, 1, 2].map((o) => ({
-        l: grid.l[i0 + o],
-        a: grid.a[i0 + o],
-        b: grid.b[i0 + o],
+        l: grid.l[i0 + o * cellWidth],
+        a: grid.a[i0 + o * cellWidth],
+        b: grid.b[i0 + o * cellWidth],
       }));
 
       // Candidate colors: union of top-K nearest to each sub-pixel, deduped.
+      // Bottom sample first, so an exact two-tone boundary (whose split has
+      // two tied descriptions) resolves to the bottom-fill reading: fg is
+      // the color rising from the bottom of the cell.
       const candidateMap = new Map<string, PaletteEntry>();
-      for (const s of samples) {
-        for (const e of topKNearest(s, entries, TOP_K)) {
+      for (let o = samples.length - 1; o >= 0; o--) {
+        for (const e of topKNearest(samples[o], entries, TOP_K)) {
           candidateMap.set(e.color.id, e);
         }
       }
@@ -287,10 +290,10 @@ export function encodeMosaic(
       for (const fg of candidates) {
         for (const bg of candidates) {
           if (fg === bg) continue;
-          consider({ kind: 'split', fg, bg, split: 1, fgSide: 'left' });
-          consider({ kind: 'split', fg, bg, split: 1, fgSide: 'right' });
-          consider({ kind: 'split', fg, bg, split: 2, fgSide: 'left' });
-          consider({ kind: 'split', fg, bg, split: 2, fgSide: 'right' });
+          consider({ kind: 'split', fg, bg, split: 1, fgSide: 'top' });
+          consider({ kind: 'split', fg, bg, split: 1, fgSide: 'bottom' });
+          consider({ kind: 'split', fg, bg, split: 2, fgSide: 'top' });
+          consider({ kind: 'split', fg, bg, split: 2, fgSide: 'bottom' });
         }
       }
 
@@ -303,11 +306,11 @@ export function encodeMosaic(
           const el = samples[i].l - assigned[i].lab.l;
           const ea = samples[i].a - assigned[i].lab.a;
           const eb = samples[i].b - assigned[i].lab.b;
-          const px = sx + i;
-          diffuse(px + 1, cy, el, ea, eb, FS_RIGHT * ditherStrength);
-          diffuse(px - 1, cy + 1, el, ea, eb, FS_BELOW_LEFT * ditherStrength);
-          diffuse(px, cy + 1, el, ea, eb, FS_BELOW * ditherStrength);
-          diffuse(px + 1, cy + 1, el, ea, eb, FS_BELOW_RIGHT * ditherStrength);
+          const py = 3 * cy + i;
+          diffuse(cx + 1, py, el, ea, eb, FS_RIGHT * ditherStrength);
+          diffuse(cx - 1, py + 1, el, ea, eb, FS_BELOW_LEFT * ditherStrength);
+          diffuse(cx, py + 1, el, ea, eb, FS_BELOW * ditherStrength);
+          diffuse(cx + 1, py + 1, el, ea, eb, FS_BELOW_RIGHT * ditherStrength);
         }
       }
     }
